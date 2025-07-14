@@ -1,33 +1,29 @@
-# app/main.py
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, users, routines, exercises
-from app.api import auth
+from app.api.v1.api import api_router
 
-app.include_router(auth.router)
-app = FastAPI(title="Fitness Recommendation API")
+app = FastAPI(
+    title="Fitness‑RS API",
+    version="0.1.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
 
-app.include_router(auth.router)
-app.include_router(users.router)
-app.include_router(exercises.router)
-app.include_router(routines.router)
-# CORS middleware
+# ─── CORS: sesuaikan origins jika perlu ────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ganti jika perlu untuk frontend tertentu
+    allow_origins=["*"],        # ganti di production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Register routers
-app.include_router(auth.router, prefix="/auth", tags=["auth"])
-app.include_router(users.router, prefix="/users", tags=["users"])
-app.include_router(routines.router, prefix="/routines", tags=["routines"])
-app.include_router(exercises.router, prefix="/exercises", tags=["exercises"])
+# ─── Mount all v1 routes ───────────────────────────────────────
+app.include_router(api_router, prefix="/api/v1")
 
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to the Fitness Recommendation API"}
+
+# ─── Simple health‑check ───────────────────────────────────────
+@app.get("/health", tags=["infra"])
+def healthcheck():
+    return {"status": "ok"}

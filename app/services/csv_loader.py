@@ -1,14 +1,22 @@
-import pandas as pd
+# app/services/csv_loader.py
 from functools import lru_cache
-from pathlib import Path
+import pandas as pd
+import math
 
-DATA_PATH = Path(__file__).parent.parent / "data" / "fitness_dataset.csv"
 
-@lru_cache()
-def load_fitness_dataset() -> pd.DataFrame:
-    df = pd.read_csv(DATA_PATH)
-    # Parsing kolom list yang berbentuk string dengan delimiter '|'
-    for col in ['equipment', 'primary_muscle', 'secondary_muscle']:
+def _split(val):
+    if val is None or (isinstance(val, float) and math.isnan(val)) or str(val).strip() == "":
+        return []
+    return [v.strip() for v in str(val).split("|") if v.strip()]
+
+
+@lru_cache
+def load_exercises() -> pd.DataFrame:
+    df = pd.read_csv("data/fitness_dataset.csv")
+
+    # ubah kolom multi‑value menjadi list
+    for col in ["equipment", "primary_muscle", "secondary_muscle"]:
         if col in df.columns:
-            df[col] = df[col].fillna("").apply(lambda x: [i.strip() for i in x.split('|')] if x else [])
+            df[col] = df[col].apply(_split)
+
     return df
