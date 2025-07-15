@@ -255,7 +255,7 @@ def run_ga_schedule(
                 preferred_parts_set,
                 bmi,
             ),
-            sol_per_pop=10,
+            sol_per_pop=15,
             num_genes=num_genes,
             gene_type=int,
             gene_space=gene_space,
