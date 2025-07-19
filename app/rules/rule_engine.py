@@ -3,8 +3,8 @@ from experta import KnowledgeEngine, Fact, Field, Rule
 from typing import List, Dict, Tuple
 
 
-# ────────────────────────────────────────────────────────────────
-# 1.  Facts persis notebook
+# ──────────────────────────────────────────────
+# Facts
 class UserInput(Fact):
     gender = Field(str, default="unknown")
     bmi = Field(float, default=0.0)
@@ -18,125 +18,140 @@ class Recommendation(Fact):
     schedule = Field(dict, default={})
 
 
-# ────────────────────────────────────────────────────────────────
-# 2.  Rule Engine
+# ──────────────────────────────────────────────
+# Rule Engine
 class FitnessRuleEngine(KnowledgeEngine):
-    """Port utuh dari notebook decide_recommendation."""
-
-    # ---------- helper internal ----------
-    @staticmethod
-    def _score_focus(focus: str, user_data: dict) -> int:
+    def _score_focus(self, focus: str, user_data: dict) -> int:
         score = 0
-        if user_data["preferred_body_part"]:
-            if focus in user_data["preferred_body_part"]:
-                score += 5
-        if user_data["injuries"]:
-            if focus in user_data["injuries"]:
-                score -= 100
+        if user_data['preferred_body_part'] and focus in user_data['preferred_body_part']:
+            score += 5
+        if user_data['injuries'] and focus in user_data['injuries']:
+            score -= 100
         return score
 
-    @staticmethod
-    def _priority_score(focus: str, gender: str) -> int:
-        if gender.lower() == "female":
-            priority = {"glutes": 0, "quadriceps": 1, "hamstrings": 2, "abs": 3}
-        elif gender.lower() == "male":
+    def _priority_score(self, focus: str, gender: str) -> int:
+        if gender.lower() == 'female':
             priority = {
-                "chest": 1,
-                "shoulders": 2,
-                "biceps": 3,
-                "triceps": 4,
-                "back": 5,
-                "abs": 6,
+                'glutes': 0,
+                'quadriceps': 1,
+                'hamstrings': 2,
+                'abs': 3,
+            }
+        elif gender.lower() == 'male':
+            priority = {
+                'chest': 1,
+                'shoulders': 2,
+                'biceps': 3,
+                'triceps': 4,
+                'back': 5,
+                'abs': 6,
             }
         else:
             priority = {}
         return priority.get(focus, 100)
 
-    # ---------- main rule ----------
     @Rule(UserInput())
     def decide_recommendation(self):
-        d = self.facts[1]          # ← fact UserInput
-        days = d["available_days"]
-        gender = d["gender"]
-        bmi = d["bmi"]
+        d = self.facts[1]
+        days = d['available_days']
+        gender = d['gender']
+        bmi = d['bmi']
 
-        schedule: Dict[str, str] = {}
-        split = "fullbody"
+        schedule = {}
+        split = 'fullbody'
 
-        # 1️⃣  Tentukan split
+        # Tentukan focus_options
+        if gender.lower() == 'female':
+            focus_options = ['glutes', 'quadriceps', 'hamstrings', 'abs']
+        else:
+            focus_options = ['chest', 'biceps', 'triceps', 'shoulders', 'back', 'abs']
+
+        # Hitung skor
+        scores = {}
+        for f in focus_options:
+            pref_bonus = 5 if (d['preferred_body_part'] and f in d['preferred_body_part']) else 0
+            injury_penalty = -100 if d['injuries'] and f in d['injuries'] else 0
+            scores[f] = pref_bonus + injury_penalty
+
+        # Tambah penalti jika preferred kosong
+        if not d['preferred_body_part']:
+            for f in focus_options:
+                scores[f] += -self._priority_score(f, gender)
+
+        sorted_focus = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        sorted_focus = [x[0] for x in sorted_focus]
+        if len(sorted_focus) < 2:
+            sorted_focus += focus_options[:2 - len(sorted_focus)]
+
+        # Tentukan split dan jadwal
         if days == 1:
-            split = "fullbody"
-            schedule["day_1"] = "fullbody"
+            split = 'fullbody'
+            schedule['day_1'] = 'cardio' if bmi >= 25.0 else 'fullbody'
+
         elif days == 2:
-            split = "upperlower"
-            schedule = {"day_1": "upper", "day_2": "lower"}
-        elif days == 3:
-            split = "ppl"
-            schedule = {"day_1": "push", "day_2": "pull", "day_3": "legs"}
-        elif days == 4:
-            split = "upperlower"
+            split = 'upperlower'
             schedule = {
-                "day_1": "upper",
-                "day_2": "lower",
-                "day_3": "upper",
-                "day_4": "lower",
+                'day_1': 'upper',
+                'day_2': 'cardio' if bmi >= 25.0 else 'lower'
             }
+
+        elif days == 3:
+            if bmi >= 25.0:
+                split = 'upperlower'
+                schedule = {
+                    'day_1': 'upper',
+                    'day_2': 'lower',
+                    'day_3': 'cardio'
+                }
+            else:
+                split = 'ppl'
+                schedule = {
+                    'day_1': 'push',
+                    'day_2': 'pull',
+                    'day_3': 'legs'
+                }
+
+        elif days == 4:
+            if bmi >= 25.0:
+                split = 'upperlower'
+                schedule = {
+                    'day_1': 'upper',
+                    'day_2': 'cardio',
+                    'day_3': 'lower',
+                    'day_4': 'cardio'
+                }
+            else:
+                split = 'upperlower'
+                schedule = {
+                    'day_1': 'upper',
+                    'day_2': 'lower',
+                    'day_3': 'upper',
+                    'day_4': 'lower'
+                }
+
         elif days == 5:
-            split = "ppl+focus"
-            schedule = {"day_1": "push", "day_2": "pull", "day_3": "legs"}
+            if bmi >= 25.0:
+                split = 'upperlower+focus'
+                schedule = {
+                    'day_1': 'upper',
+                    'day_2': 'cardio',
+                    'day_3': sorted_focus[0],
+                    'day_4': 'cardio',
+                    'day_5': 'lower'
+                }
+            else:
+                split = 'ppl+focus'
+                schedule = {
+                    'day_1': 'push',
+                    'day_2': 'pull',
+                    'day_3': 'legs',
+                    'day_4': sorted_focus[0],
+                    'day_5': sorted_focus[1]
+                }
 
-            focus_options = (
-                ["glutes", "quadriceps", "hamstrings", "abs"]
-                if gender.lower() == "female"
-                else ["chest", "biceps", "triceps", "shoulders", "back", "abs"]
-            )
-
-            # if not d["preferred_body_part"]:
-            #     sorted_focus = sorted(focus_options, key=lambda x: self._priority_score(x, gender))
-            # else:
-            scores = {f: self._score_focus(f, d) for f in focus_options}
-            sorted_focus = [k for k, _ in sorted(scores.items(), key=lambda x: x[1], reverse=True)]
-
-            schedule["day_4"] = sorted_focus[0]
-            schedule["day_5"] = sorted_focus[1]
-
-        # 2️⃣  Sisipkan cardio bila BMI >= 25
-        if bmi >= 25.0:
-            cardio_days = 2 if days >= 4 else 1
-            inserted = 0
-            targets = ["legs", "lower", "fullbody"]
-
-            # ganti prioritas rendah
-            for day in range(1, days + 1):
-                if inserted >= cardio_days:
-                    break
-                key = f"day_{day}"
-                focus = schedule.get(key)
-                if (
-                    focus in targets
-                    and self._score_focus(focus, d) <= 0
-                    and (day == 1 or schedule.get(f"day_{day-1}") != "cardio")
-                ):
-                    schedule[key] = "cardio"
-                    inserted += 1
-
-            # fallback netral
-            for day in range(days, 0, -1):
-                if inserted >= cardio_days:
-                    break
-                key = f"day_{day}"
-                prev = f"day_{day-1}"
-                focus = schedule.get(key)
-                if focus != "cardio" and self._score_focus(focus, d) <= 0 and schedule.get(prev) != "cardio":
-                    schedule[key] = "cardio"
-                    inserted += 1
-
-        # 3️⃣  Simpan fact rekomendasi
         self.declare(Recommendation(split_method=split, schedule=schedule))
 
-    # ---------- public API ----------
     def get_result(self) -> Tuple[str, Dict[str, str]]:
-        """Return (split, schedule) setelah engine.run()."""
         for f in self.facts.values():
             if isinstance(f, Recommendation):
                 return f["split_method"], f["schedule"]

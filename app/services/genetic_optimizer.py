@@ -1,10 +1,7 @@
 """
 Pembungkus tahap 9 (Genetic Algorithm) dari notebook.
-Semua *tuning parameter* (generations, population size, dsb.) dibiarkan
-PERSIS sama; hanya noise‐logging & visualisasi yang dihilangkan.
-
-Fungsi publik: `run_ga_schedule(schedule, daily_pool, injured_parts)`
-mengembalikan `daywise_schedule` siap dikonversi ke schema response.
+Parameter GA dan aturan diadopsi dari ipynb versi terbaru.
+Output fungsi hanya daywise_schedule (minimalis untuk backend API).
 """
 
 from typing import Dict, List, Set
@@ -12,17 +9,15 @@ import numpy as np
 import pandas as pd
 import pygad
 import os
+from collections import Counter
 
 # ────────────────────────────────────────────────────────────────
-# 1.  Utils logging ringan
 DEBUG = os.getenv("DEBUG", "0") == "1"
 def _log(*args, **kwargs):
     if DEBUG:
         print(*args, **kwargs)
 
-
 # ────────────────────────────────────────────────────────────────
-# 2.  Konstanta & helper persis seperti notebook
 BASE_SCORE = 0
 MAX_PENALTY = 10
 
@@ -41,15 +36,11 @@ cardio_indoor_exercises = {
 }
 cardio_priority_keywords = {"run", "walk", "jog"}
 
-
 def penalty_duplicate(dup_count: int) -> int:
     return 2 * dup_count
 
-
 def check_body_part_variation(seen_parts: List[str], day_focus: str,
                               injured_parts: Set[str], df_subset: pd.DataFrame) -> int:
-    from collections import Counter
-
     unique_parts = set(seen_parts)
     part_counts = Counter(seen_parts)
     most_common_count = part_counts.most_common(1)[0][1] if part_counts else 0
@@ -59,7 +50,7 @@ def check_body_part_variation(seen_parts: List[str], day_focus: str,
         "lower": {"glutes", "quadriceps", "hamstrings", "calves"},
         "push": {"shoulders", "chest", "triceps"},
         "pull": {"back", "biceps", "forearms", "neck"},
-        "legs": {"glutes", "quadriceps", "hamstrings", "calves"},
+        "legs": {"glutes", "quadriceps", "hamstrings", "calves", "abs"},
         "fullbody": {
             "neck", "shoulders", "chest", "back", "abs", "biceps", "triceps",
             "forearms", "glutes", "quadriceps", "hamstrings", "calves",
@@ -89,7 +80,6 @@ def check_body_part_variation(seen_parts: List[str], day_focus: str,
 
     return penalty
 
-
 def check_muscle_variation(solution_indices: List[int], df_subset: pd.DataFrame,
                            day_focus: str) -> int:
     primary_muscles, secondary_muscles = [], []
@@ -114,14 +104,10 @@ def check_muscle_variation(solution_indices: List[int], df_subset: pd.DataFrame,
         penalty += 1 * (2 - len(unique_secondary))
     return penalty
 
-
 def is_cardio_exercise(ex_name: str) -> bool:
     ex_lower = ex_name.lower()
     return any(k in ex_lower for k in cardio_priority_keywords)
 
-
-# ────────────────────────────────────────────────────────────────
-# 3.  Factory pembuat fitness‑function per hari
 def _make_fitness_func(day_focus: str, injured_parts: Set[str],
                        df_subset: pd.DataFrame, preferred_parts: Set[str],
                        bmi: float):
@@ -140,15 +126,15 @@ def _make_fitness_func(day_focus: str, injured_parts: Set[str],
             body_part = ex["body_part"].lower()
             ex_name = ex["exercise_name"].lower()
 
-            # Hindari cedera
+            # Penalti cedera
             if body_part in injured_parts:
                 score -= 5
 
-            # Fokus hari
-            if body_part == day_focus or body_part in day_focus:
-                score += 2
-            else:
+            # Penalti/favor fokus hari
+            if not (body_part == day_focus or body_part in day_focus):
                 score -= 3
+            else:
+                score += 2
 
             # Preferensi user
             if body_part in preferred_parts:
@@ -156,7 +142,7 @@ def _make_fitness_func(day_focus: str, injured_parts: Set[str],
 
             seen_body_parts.append(body_part)
 
-            # Skor cardio utk BMI < 30
+            # Skor cardio jika BMI < 30
             if body_part == "cardio" and bmi < 30.0 and is_cardio_exercise(ex_name):
                 score += 2
 
@@ -173,12 +159,13 @@ def _make_fitness_func(day_focus: str, injured_parts: Set[str],
             else:
                 cardio_slots += 1
 
-        # Penalti variasi
+        # Penalti variasi body part
         score -= check_body_part_variation(seen_body_parts, focus_lower, injured_parts, df_subset)
-        if is_cardio_split or is_special_focus:
-            score -= check_muscle_variation(solution, df_subset, focus_lower)
 
-        # Penalti duplikat
+        # Penalti variasi otot (tanpa pengecualian)
+        score -= check_muscle_variation(solution, df_subset, focus_lower)
+
+        # Penalti duplikat body part
         dup = len(seen_body_parts) - len(set(seen_body_parts))
         if dup:
             score -= penalty_duplicate(dup)
@@ -193,7 +180,7 @@ def _make_fitness_func(day_focus: str, injured_parts: Set[str],
         if cardio_slots > exercises_per_day:
             score -= (cardio_slots - exercises_per_day) * 2
 
-        # Noise negatif ringan hanya di generasi pertama
+        # Noise negatif ringan di generasi pertama
         if ga_instance.generations_completed == 0:
             score -= np.random.uniform(2, 5)
 
@@ -201,9 +188,27 @@ def _make_fitness_func(day_focus: str, injured_parts: Set[str],
 
     return fitness_func
 
+def should_add_preference_gene(focus_name: str, preferred_parts: Set[str]) -> bool:
+    focus_name = focus_name.lower()
 
-# ────────────────────────────────────────────────────────────────
-# 4.  Fungsi publik: menjalankan GA utk seluruh minggu
+    focus_map = {
+        "fullbody": {"neck", "shoulders", "chest", "back", "abs", "biceps", "triceps", "forearms", "glutes", "quadriceps", "hamstrings", "calves"},
+        "upper": {"neck", "shoulders", "chest", "back", "abs", "biceps", "triceps", "forearms"},
+        "lower": {"glutes", "quadriceps", "hamstrings", "calves"},
+        "push": {"shoulders", "chest", "triceps"},
+        "pull": {"back", "biceps", "forearms"},
+        "legs": {"glutes", "quadriceps", "hamstrings", "calves", "abs"},
+        "male focus": {"chest", "shoulders", "biceps", "triceps", "back", "abs"},
+        "female focus": {"glutes", "quadriceps", "hamstrings", "abs"},
+    }
+
+    # Jangan tambah gene jika fokus langsung body part atau male/female focus
+    if focus_name not in focus_map or focus_name in {"male focus", "female focus"}:
+        return False
+
+    overlap = preferred_parts & focus_map[focus_name]
+    return len(overlap) >= 1
+
 def run_ga_schedule(
     schedule: Dict[str, str],
     daily_exercise_pool: Dict[str, pd.DataFrame],
@@ -211,20 +216,6 @@ def run_ga_schedule(
     preferred_body_parts: List[str] = None,
     bmi: float = 0.0,
 ) -> Dict[str, Dict]:
-    """
-    Parameters
-    ----------
-    schedule:       mapping keluaran Rule Engine, e.g. {'day_1':'upper', ...}
-    daily_exercise_pool: dict day_key → DataFrame latihan yg sudah difilter
-    injured_body_parts:  list cedera (lowercase)
-    preferred_body_parts: list preferensi user
-    bmi:  nilai BMI user (digunakan di fitness score cardio)
-
-    Returns
-    -------
-    daywise_schedule dict:
-        { 'day_1': {'focus':'upper', 'exercises':[exercise_dict, ...]}, ... }
-    """
     injured_parts_set = set(map(str.lower, injured_body_parts or []))
     preferred_parts_set = set(map(str.lower, preferred_body_parts or []))
 
@@ -233,42 +224,66 @@ def run_ga_schedule(
     for day_key, focus in schedule.items():
         df_day = daily_exercise_pool.get(day_key)
         if df_day is None or df_day.empty:
-            _log(f"[GA]   {day_key} pool kosong — dilewati.")
+            _log(f"[GA] {day_key} pool kosong — dilewati.")
             continue
 
         gene_space = list(range(len(df_day)))
-        num_genes = (
-            4 if focus.lower() in split_fokus_body_part
-            else 3 if focus.lower() in split_cardio
-            else 5
-        )
 
-        # Siapkan GA
+        base_genes = 4 if focus.lower() in split_fokus_body_part else 3 if focus.lower() in split_cardio else 5
+        bonus_gene = 1 if should_add_preference_gene(focus, preferred_parts_set) else 0
+        num_genes = base_genes + bonus_gene
+
+        # # exploration and experimental purpose 41.81s, 50.54s via postman hit (local)
+        # ga = pygad.GA(
+        #     allow_duplicate_genes=False,
+        #     num_generations=200,              
+        #     sol_per_pop=60,                   
+        #     num_parents_mating=25, 
+        #     fitness_func=_make_fitness_func(
+        #         focus, injured_parts_set, df_day, preferred_parts_set, bmi
+        #     ),
+        #     num_genes=num_genes,
+        #     gene_type=int,
+        #     gene_space=gene_space,
+        #     parent_selection_type="tournament",
+        #     crossover_type="uniform",
+        #     mutation_type="random",
+        #     mutation_percent_genes=25,      
+        #     keep_parents=5,             
+        #     stop_criteria=None,  
+        #     save_solutions=False,
+        #     suppress_warnings=True,
+        #     on_generation=None,      
+        # )
+
+        # production purpose 758ms, 584ms, 667ms, 563ms, 439ms via postman hit (local)
         ga = pygad.GA(
             allow_duplicate_genes=False,
-            num_generations=100,           # ← parameter tuning TIDAK diubah
-            num_parents_mating=6,
+            num_generations=25,               # Lebih cepat selesai
+            sol_per_pop=20,      
+            num_parents_mating=8,        
             fitness_func=_make_fitness_func(
-                focus,
-                injured_parts_set,
-                df_day,
-                preferred_parts_set,
-                bmi,
+                focus, injured_parts_set, df_day, preferred_parts_set, bmi
             ),
-            sol_per_pop=15,
             num_genes=num_genes,
             gene_type=int,
             gene_space=gene_space,
-            parent_selection_type="sss",
+            parent_selection_type="tournament",
             crossover_type="uniform",
             mutation_type="random",
-            mutation_percent_genes=40,
-            stop_criteria=["saturate_20"],
+            mutation_percent_genes=12,   
+            keep_parents=3,
+            stop_criteria=["saturate_5"], 
             save_solutions=False,
             suppress_warnings=True,
+            on_generation=None,
         )
 
-        _log(f"[GA]   Running for {day_key} ({focus}) pool={len(df_day)}")
+
+
+
+
+        _log(f"[GA] Running GA for {day_key} ({focus}), pool size: {len(df_day)}")
         ga.run()
 
         best_genes = ga.best_solution()[0]
