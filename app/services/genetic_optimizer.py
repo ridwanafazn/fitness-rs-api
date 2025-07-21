@@ -1,3 +1,4 @@
+#app/serevices/genetic_optimizer.py
 """
 Pembungkus tahap 9 (Genetic Algorithm) dari notebook.
 Parameter GA dan aturan diadopsi dari ipynb versi terbaru.
@@ -34,7 +35,6 @@ cardio_indoor_exercises = {
     "cycle cross trainer", "walking on incline treadmill",
     "walking on treadmill", "walking",
 }
-cardio_priority_keywords = {"run", "walk", "jog"}
 
 def penalty_duplicate(dup_count: int) -> int:
     return 2 * dup_count
@@ -104,9 +104,6 @@ def check_muscle_variation(solution_indices: List[int], df_subset: pd.DataFrame,
         penalty += 1 * (2 - len(unique_secondary))
     return penalty
 
-def is_cardio_exercise(ex_name: str) -> bool:
-    ex_lower = ex_name.lower()
-    return any(k in ex_lower for k in cardio_priority_keywords)
 
 def _make_fitness_func(day_focus: str, injured_parts: Set[str],
                        df_subset: pd.DataFrame, preferred_parts: Set[str],
@@ -142,22 +139,6 @@ def _make_fitness_func(day_focus: str, injured_parts: Set[str],
 
             seen_body_parts.append(body_part)
 
-            # Skor cardio jika BMI < 30
-            if body_part == "cardio" and bmi < 30.0 and is_cardio_exercise(ex_name):
-                score += 2
-
-            # Hitung slot cardio
-            if body_part == "cardio":
-                if any(r in ex_name for r in cardio_run_exercises):
-                    run_cnt += 1
-                    cardio_slots += 4
-                elif any(i in ex_name for i in cardio_indoor_exercises):
-                    indoor_cnt += 1
-                    cardio_slots += 3
-                else:
-                    cardio_slots += 1
-            else:
-                cardio_slots += 1
 
         # Penalti variasi body part
         score -= check_body_part_variation(seen_body_parts, focus_lower, injured_parts, df_subset)
@@ -279,15 +260,37 @@ def run_ga_schedule(
             on_generation=None,
         )
 
-
-
-
-
         _log(f"[GA] Running GA for {day_key} ({focus}), pool size: {len(df_day)}")
         ga.run()
 
         best_genes = ga.best_solution()[0]
         selected = [df_day.iloc[idx].to_dict() for idx in best_genes]
+
+        if focus.lower() == "cardio":
+            run_indices = []
+            indoor_indices = []
+
+            for i, ex in enumerate(selected):
+                name = ex["exercise_name"].lower().strip()
+                if name in cardio_run_exercises:
+                    run_indices.append(i)
+                elif name in cardio_indoor_exercises:
+                    indoor_indices.append(i)
+
+            to_remove = set()
+
+            if run_indices:
+                # Hapus 2 latihan lain
+                candidates = [i for i in range(len(selected)) if i not in run_indices]
+                to_remove.update(candidates[:2])  # safe slicing
+
+            elif indoor_indices:
+                # Hapus 1 latihan lain
+                candidates = [i for i in range(len(selected)) if i not in indoor_indices]
+                to_remove.update(candidates[:1])
+
+            selected = [ex for j, ex in enumerate(selected) if j not in to_remove]
+
 
         daywise_schedule[day_key] = {
             "focus": focus,
