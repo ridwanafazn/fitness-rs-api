@@ -1,11 +1,18 @@
 # app/rules/rule_engine.py
-from experta import KnowledgeEngine, Fact, Field, Rule
+
+from experta import KnowledgeEngine, Fact, Field, Rule, DefFacts, MATCH, NOT
 from typing import List, Dict, Tuple
 
+# ──────────────────────────────────────────────
+# Konstanta
+PREF_BONUS = 5
+INJURY_PENALTY = -100
+DEFAULT_PRIORITY_PENALTY = -1
 
 # ──────────────────────────────────────────────
 # Facts
 class UserInput(Fact):
+    """Fakta input pengguna untuk sistem rekomendasi fitness."""
     gender = Field(str, default="unknown")
     bmi = Field(float, default=0.0)
     injuries = Field(list, default=[])
@@ -14,6 +21,7 @@ class UserInput(Fact):
 
 
 class Recommendation(Fact):
+    """Fakta output rekomendasi jadwal dan metode split."""
     split_method = Field(str, default="")
     schedule = Field(dict, default={})
 
@@ -21,15 +29,23 @@ class Recommendation(Fact):
 # ──────────────────────────────────────────────
 # Rule Engine
 class FitnessRuleEngine(KnowledgeEngine):
+    """Engine sistem pakar untuk menentukan rekomendasi program fitness."""
+
     def _score_focus(self, focus: str, user_data: dict) -> int:
+        """
+        Hitung skor fokus berdasarkan preferensi dan cedera pengguna.
+        """
         score = 0
         if user_data['preferred_body_part'] and focus in user_data['preferred_body_part']:
-            score += 5
+            score += PREF_BONUS
         if user_data['injuries'] and focus in user_data['injuries']:
-            score -= 100
+            score += INJURY_PENALTY
         return score
 
     def _priority_score(self, focus: str, gender: str) -> int:
+        """
+        Memberikan penalti jika pengguna tidak menyebutkan preferensi.
+        """
         if gender.lower() == 'female':
             priority = {
                 'glutes': 0,
@@ -50,34 +66,40 @@ class FitnessRuleEngine(KnowledgeEngine):
             priority = {}
         return priority.get(focus, 100)
 
-    @Rule(UserInput())
-    def decide_recommendation(self):
-        d = self.facts[1]
-        days = d['available_days']
-        gender = d['gender']
-        bmi = d['bmi']
+    @Rule(UserInput(gender=MATCH.gender,
+                    bmi=MATCH.bmi,
+                    injuries=MATCH.injuries,
+                    available_days=MATCH.days,
+                    preferred_body_part=MATCH.pref))
+    def decide_recommendation(self, gender, bmi, injuries, days, pref):
+        """
+        Aturan utama: menentukan metode split dan jadwal berdasarkan input pengguna.
+        """
+        print(f"Processing recommendation for gender={gender}, BMI={bmi}, days={days}")
 
         schedule = {}
         split = 'fullbody'
 
-        # Tentukan focus_options
-        if gender.lower() == 'female':
-            focus_options = ['glutes', 'quadriceps', 'hamstrings', 'abs']
-        else:
-            focus_options = ['chest', 'biceps', 'triceps', 'shoulders', 'back', 'abs']
+        # Fokus berdasarkan gender
+        focus_options = (
+            ['glutes', 'quadriceps', 'hamstrings', 'abs']
+            if gender.lower() == 'female'
+            else ['chest', 'biceps', 'triceps', 'shoulders', 'back', 'abs']
+        )
 
-        # Hitung skor
-        scores = {}
-        for f in focus_options:
-            pref_bonus = 5 if (d['preferred_body_part'] and f in d['preferred_body_part']) else 0
-            injury_penalty = -100 if d['injuries'] and f in d['injuries'] else 0
-            scores[f] = pref_bonus + injury_penalty
+        # Hitung skor fokus
+        user_data = {
+            'preferred_body_part': pref,
+            'injuries': injuries
+        }
 
-        # Tambah penalti jika preferred kosong
-        if not d['preferred_body_part']:
+        scores = {f: self._score_focus(f, user_data) for f in focus_options}
+
+        if not pref:
             for f in focus_options:
                 scores[f] += -self._priority_score(f, gender)
 
+        # Urutkan fokus berdasarkan skor
         sorted_focus = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         sorted_focus = [x[0] for x in sorted_focus]
         if len(sorted_focus) < 2:
@@ -152,6 +174,9 @@ class FitnessRuleEngine(KnowledgeEngine):
         self.declare(Recommendation(split_method=split, schedule=schedule))
 
     def get_result(self) -> Tuple[str, Dict[str, str]]:
+        """
+        Mengembalikan split_method dan schedule dari Recommendation yang telah di-declare.
+        """
         for f in self.facts.values():
             if isinstance(f, Recommendation):
                 return f["split_method"], f["schedule"]
