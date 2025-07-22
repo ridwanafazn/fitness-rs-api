@@ -106,8 +106,7 @@ def check_muscle_variation(solution_indices: List[int], df_subset: pd.DataFrame,
 
 
 def _make_fitness_func(day_focus: str, injured_parts: Set[str],
-                       df_subset: pd.DataFrame, preferred_parts: Set[str],
-                       bmi: float):
+                       df_subset: pd.DataFrame, preferred_parts: Set[str]   ):
     focus_lower = day_focus.lower()
     is_fokus_split = focus_lower in split_fokus_body_part
     is_cardio_split = focus_lower in split_cardio
@@ -244,7 +243,7 @@ def run_ga_schedule(
             sol_per_pop=20,      
             num_parents_mating=8,        
             fitness_func=_make_fitness_func(
-                focus, injured_parts_set, df_day, preferred_parts_set, bmi
+                focus, injured_parts_set, df_day, preferred_parts_set
             ),
             num_genes=num_genes,
             gene_type=int,
