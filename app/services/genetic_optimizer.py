@@ -213,14 +213,14 @@ def run_ga_schedule(
         bonus_gene = 1 if should_add_preference_gene(focus, preferred_parts_set) else 0
         num_genes = base_genes + bonus_gene
 
-        # # exploration and experimental purpose 41.81s, 50.54s via postman hit (local)
+        # # exploration and experimental purpose 6s via postman hit (local)
         # ga = pygad.GA(
         #     allow_duplicate_genes=False,
-        #     num_generations=200,              
-        #     sol_per_pop=60,                   
-        #     num_parents_mating=25, 
+        #     num_generations=120,              
+        #     sol_per_pop=25,                   
+        #     num_parents_mating=8, 
         #     fitness_func=_make_fitness_func(
-        #         focus, injured_parts_set, df_day, preferred_parts_set, bmi
+        #         focus, injured_parts_set, df_day, preferred_parts_set
         #     ),
         #     num_genes=num_genes,
         #     gene_type=int,
@@ -228,8 +228,8 @@ def run_ga_schedule(
         #     parent_selection_type="tournament",
         #     crossover_type="uniform",
         #     mutation_type="random",
-        #     mutation_percent_genes=25,      
-        #     keep_parents=5,             
+        #     mutation_percent_genes=50,      
+        #     keep_parents=3,             
         #     stop_criteria=None,  
         #     save_solutions=False,
         #     suppress_warnings=True,
