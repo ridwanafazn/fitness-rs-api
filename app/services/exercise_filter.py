@@ -129,8 +129,11 @@ def _equipment_filter(eq_list: List[str], preferred: List[str]) -> bool:
 
 
 def _filter_by_focus(df: pd.DataFrame, focus: str) -> pd.DataFrame:
-    if focus.lower() == "cardio":
+    focus_lower = focus.lower()
+    if focus_lower == "cardio":
         return df[df["body_part"].str.lower() == "cardio"]
+    if focus_lower == "fullbody":
+        return df[df["body_part"].str.lower() != "cardio"]  # exclude cardio for fullbody
     return df[df["body_part"].str.lower().apply(lambda bp: is_exercise_focus(bp, focus))]
 
 
