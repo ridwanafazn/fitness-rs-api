@@ -1,4 +1,4 @@
-# app/api/recommendation.py  (hanya fungsi create_recommendation di‑update)
+# app/api/recommendation.py
 from typing import List, Dict
 from fastapi import APIRouter, HTTPException, status
 from math import pow
@@ -9,6 +9,12 @@ from app.services.csv_loader import load_exercises
 from app.services.exercise_filter import build_daily_pool
 from app.services.genetic_optimizer import run_ga_schedule
 from app.rules.rule_engine import FitnessRuleEngine, UserInput   # ← UserInput = Fact
+
+from fastapi import Body
+from app.schemas.recommendation import ByFocusRequest, ByFocusResponse
+from app.services.csv_loader import load_exercises
+from app.services.exercise_filter import build_daily_pool
+from app.services.genetic_optimizer import run_ga_schedule
 
 router = APIRouter()
 
@@ -69,4 +75,39 @@ def create_recommendation(req: RecommendationRequest):
         split_type=split_type,
         schedule=schedule,
         days=days_out,
+    )
+@router.post("/by-focus", response_model=ByFocusResponse, status_code=status.HTTP_201_CREATED)
+def recommend_by_focus(
+    req: ByFocusRequest = Body(...)
+):
+    bmi = req.bmi if req.bmi is not None else 0.0
+
+    schedule = {"day_1": req.day_focus.lower()}
+
+    df = load_exercises()
+
+    daily_pool = build_daily_pool(
+        schedule=schedule,
+        df_all=df,
+        injuries=req.injuries,
+        preferred_equipment=req.preferred_equipment,
+    )
+
+    daywise = run_ga_schedule(
+        schedule,
+        daily_pool,
+        injured_body_parts=req.injuries,
+        preferred_body_parts=req.preferred_body_part,
+        bmi=bmi,
+    )
+
+    if not daywise:
+        raise HTTPException(status_code=404, detail="Unable to build workout plan")
+
+    day_info = daywise.get("day_1")
+    exercises_out = [ExerciseOut.model_validate(e) for e in day_info["exercises"]] if day_info else []
+
+    return ByFocusResponse(
+        day_focus=req.day_focus,
+        exercises=exercises_out
     )

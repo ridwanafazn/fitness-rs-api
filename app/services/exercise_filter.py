@@ -81,7 +81,7 @@ def is_exercise_focus(exercise_body_part: str, day_focus: str) -> bool:
     lower = quads | glutes | calves | hams
     push = chest | triceps | shoulders
     pull = back | biceps | forearms | neck
-    legs = quads | glutes | calves | hams
+    legs = quads | glutes | calves | hams | abs_
 
     male_focus = chest | shoulders | biceps | triceps | back | abs_
     female_focus = glutes | quads | hams | abs_
