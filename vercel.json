@@ -4,8 +4,7 @@
       "src": "app/main.py",
       "use": "@vercel/python",
       "config": {
-        "runtime": "python3.9",
-        "maxLambdaSize": "15mb"
+        "runtime": "python3.9"
       }
     }
   ],
@@ -14,6 +13,5 @@
       "src": "/(.*)",
       "dest": "app/main.py"
     }
-  ],
-  "includeFiles": ["data/fitness_dataset.csv"]
+  ]
 }
