@@ -35,6 +35,7 @@ cardio_indoor_exercises = {
     "cycle cross trainer", "walking on incline treadmill",
     "walking on treadmill", "walking",
 }
+# cardio_priority_keywords = {"run", "walk", "jog"}
 
 def penalty_duplicate(dup_count: int) -> int:
     return 2 * dup_count
@@ -138,6 +139,22 @@ def _make_fitness_func(day_focus: str, injured_parts: Set[str],
 
             seen_body_parts.append(body_part)
 
+            # Skor cardio jika BMI < 30
+            # if body_part == "cardio" and bmi < 30.0 and is_cardio_exercise(ex_name):
+            #     score += 2
+
+            # # Hitung slot cardio
+            # if body_part == "cardio":
+            #     if any(r in ex_name for r in cardio_run_exercises):
+            #         run_cnt += 1
+            #         cardio_slots += 4
+            #     elif any(i in ex_name for i in cardio_indoor_exercises):
+            #         indoor_cnt += 1
+            #         cardio_slots += 3
+            #     else:
+            #         cardio_slots += 1
+            # else:
+            #     cardio_slots += 1
 
         # Penalti variasi body part
         score -= check_body_part_variation(seen_body_parts, focus_lower, injured_parts, df_subset)
@@ -160,7 +177,6 @@ def _make_fitness_func(day_focus: str, injured_parts: Set[str],
         if cardio_slots > exercises_per_day:
             score -= (cardio_slots - exercises_per_day) * 2
 
-        # Noise negatif ringan di generasi pertama
         if ga_instance.generations_completed == 0:
             score -= np.random.uniform(2, 5)
 
@@ -180,6 +196,7 @@ def should_add_preference_gene(focus_name: str, preferred_parts: Set[str]) -> bo
         "legs": {"glutes", "quadriceps", "hamstrings", "calves", "abs"},
         "male focus": {"chest", "shoulders", "biceps", "triceps", "back", "abs"},
         "female focus": {"glutes", "quadriceps", "hamstrings", "abs"},
+        "cardio": {"cardio"},
     }
 
     # Jangan tambah gene jika fokus langsung body part atau male/female focus
@@ -253,7 +270,7 @@ def run_ga_schedule(
             mutation_type="random",
             mutation_percent_genes=12,   
             keep_parents=3,
-            stop_criteria=["saturate_5"], 
+            stop_criteria=["saturate_8"], 
             save_solutions=False,
             suppress_warnings=True,
             on_generation=None,
@@ -265,30 +282,22 @@ def run_ga_schedule(
         best_genes = ga.best_solution()[0]
         selected = [df_day.iloc[idx].to_dict() for idx in best_genes]
 
+        # Tambahkan blok filter di sini sebelum assign ke daywise_schedule
         if focus.lower() == "cardio":
-            run_indices = []
-            indoor_indices = []
-
-            for i, ex in enumerate(selected):
-                name = ex["exercise_name"].lower().strip()
-                if name in cardio_run_exercises:
-                    run_indices.append(i)
-                elif name in cardio_indoor_exercises:
-                    indoor_indices.append(i)
-
-            to_remove = set()
+            run_indices = [i for i, ex in enumerate(selected) if ex["exercise_name"].lower() in cardio_run_exercises]
+            indoor_indices = [i for i, ex in enumerate(selected) if ex["exercise_name"].lower() in cardio_indoor_exercises]
 
             if run_indices:
-                # Hapus 2 latihan lain
-                candidates = [i for i in range(len(selected)) if i not in run_indices]
-                to_remove.update(candidates[:2])  # safe slicing
+                # Paksa hanya 1 run saja
+                selected = [selected[run_indices[0]]]
 
             elif indoor_indices:
-                # Hapus 1 latihan lain
-                candidates = [i for i in range(len(selected)) if i not in indoor_indices]
-                to_remove.update(candidates[:1])
-
-            selected = [ex for j, ex in enumerate(selected) if j not in to_remove]
+                # Potong jadi 2 latihan saja, prioritaskan indoor
+                if len(selected) > 2:
+                    selected_sorted = [selected[i] for i in indoor_indices] + [
+                        selected[i] for i in range(len(selected)) if i not in indoor_indices
+                    ]
+                    selected = selected_sorted[:2]
 
 
         daywise_schedule[day_key] = {

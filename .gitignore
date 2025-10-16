@@ -11,6 +11,9 @@
 # C extensions
 *.so
 
+.venv39
+.venv39/*
+
 # Distribution / packaging
 .Python
 build/
