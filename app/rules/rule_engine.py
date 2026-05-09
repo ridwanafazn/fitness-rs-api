@@ -1,7 +1,13 @@
 # app/rules/rule_engine.py
 
-from experta import KnowledgeEngine, Fact, Field, Rule, DefFacts, MATCH, NOT
+from experta import KnowledgeEngine, Fact, Field, Rule, MATCH
 from typing import List, Dict, Tuple
+import logging
+
+# ──────────────────────────────────────────────
+# STANDARISASI LOGGING
+# ──────────────────────────────────────────────
+logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────
 # Konstanta
@@ -48,19 +54,12 @@ class FitnessRuleEngine(KnowledgeEngine):
         """
         if gender.lower() == 'female':
             priority = {
-                'glutes': 0,
-                'quadriceps': 1,
-                'hamstrings': 2,
-                'abs': 3,
+                'glutes': 0, 'quadriceps': 1, 'hamstrings': 2, 'abs': 3,
             }
         elif gender.lower() == 'male':
             priority = {
-                'chest': 1,
-                'shoulders': 2,
-                'biceps': 3,
-                'triceps': 4,
-                'back': 5,
-                'abs': 6,
+                'chest': 1, 'shoulders': 2, 'biceps': 3, 'triceps': 4,
+                'back': 5, 'abs': 6,
             }
         else:
             priority = {}
@@ -75,7 +74,8 @@ class FitnessRuleEngine(KnowledgeEngine):
         """
         Aturan utama: menentukan metode split dan jadwal berdasarkan input pengguna.
         """
-        print(f"Processing recommendation for gender={gender}, BMI={bmi}, days={days}")
+        # REFACTORED: Menggunakan logger, bukan print
+        logger.info(f"Processing Rule Engine -> Gender: {gender}, BMI: {bmi}, Days: {days}, Pref: {pref}")
 
         schedule = {}
         split = 'fullbody'
@@ -109,68 +109,26 @@ class FitnessRuleEngine(KnowledgeEngine):
         if days == 1:
             split = 'fullbody'
             schedule['day_1'] = 'cardio' if bmi >= 25.0 else 'fullbody'
-
         elif days == 2:
             split = 'upperlower'
-            schedule = {
-                'day_1': 'upper',
-                'day_2': 'cardio' if bmi >= 25.0 else 'lower'
-            }
-
+            schedule = {'day_1': 'upper', 'day_2': 'cardio' if bmi >= 25.0 else 'lower'}
         elif days == 3:
             if bmi >= 25.0:
-                split = 'upperlower'
-                schedule = {
-                    'day_1': 'upper',
-                    'day_2': 'lower',
-                    'day_3': 'cardio'
-                }
+                split, schedule = 'upperlower', {'day_1': 'upper', 'day_2': 'lower', 'day_3': 'cardio'}
             else:
-                split = 'ppl'
-                schedule = {
-                    'day_1': 'push',
-                    'day_2': 'pull',
-                    'day_3': 'legs'
-                }
-
+                split, schedule = 'ppl', {'day_1': 'push', 'day_2': 'pull', 'day_3': 'legs'}
         elif days == 4:
             if bmi >= 25.0:
-                split = 'upperlower'
-                schedule = {
-                    'day_1': 'upper',
-                    'day_2': 'cardio',
-                    'day_3': 'lower',
-                    'day_4': 'cardio'
-                }
+                split, schedule = 'upperlower', {'day_1': 'upper', 'day_2': 'cardio', 'day_3': 'lower', 'day_4': 'cardio'}
             else:
-                split = 'upperlower'
-                schedule = {
-                    'day_1': 'upper',
-                    'day_2': 'lower',
-                    'day_3': 'upper',
-                    'day_4': 'lower'
-                }
-
-        elif days == 5:
+                split, schedule = 'upperlower', {'day_1': 'upper', 'day_2': 'lower', 'day_3': 'upper', 'day_4': 'lower'}
+        elif days >= 5: # REFACTORED: Gunakan >= 5 untuk menangani fallback hari tak terduga
             if bmi >= 25.0:
-                split = 'upperlower+focus'
-                schedule = {
-                    'day_1': 'upper',
-                    'day_2': 'cardio',
-                    'day_3': sorted_focus[0],
-                    'day_4': 'cardio',
-                    'day_5': 'lower'
-                }
+                split, schedule = 'upperlower+focus', {'day_1': 'upper', 'day_2': 'cardio', 'day_3': sorted_focus[0], 'day_4': 'cardio', 'day_5': 'lower'}
             else:
-                split = 'ppl+focus'
-                schedule = {
-                    'day_1': 'push',
-                    'day_2': 'pull',
-                    'day_3': 'legs',
-                    'day_4': sorted_focus[0],
-                    'day_5': sorted_focus[1]
-                }
+                split, schedule = 'ppl+focus', {'day_1': 'push', 'day_2': 'pull', 'day_3': 'legs', 'day_4': sorted_focus[0], 'day_5': sorted_focus[1]}
 
+        logger.debug(f"Rule Engine Output -> Split: {split}, Schedule: {schedule}")
         self.declare(Recommendation(split_method=split, schedule=schedule))
 
     def get_result(self) -> Tuple[str, Dict[str, str]]:
@@ -180,4 +138,7 @@ class FitnessRuleEngine(KnowledgeEngine):
         for f in self.facts.values():
             if isinstance(f, Recommendation):
                 return f["split_method"], f["schedule"]
+                
+        # REFACTORED: Log peringatan keras jika fallback terpicu
+        logger.warning("No specific rule matched! Falling back to default 'fullbody' schedule.")
         return "fullbody", {"day_1": "fullbody"}

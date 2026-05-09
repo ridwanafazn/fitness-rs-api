@@ -1,8 +1,12 @@
-#app/serevices/genetic_optimizer.py
+# app/services/genetic_optimizer.py
 """
-Pembungkus tahap 9 (Genetic Algorithm) dari notebook.
+Pembungkus tahap 9 (Genetic Algorithm) dari notebook.
 Parameter GA dan aturan diadopsi dari ipynb versi terbaru.
 Output fungsi hanya daywise_schedule (minimalis untuk backend API).
+
+*REFACTORED FOR PRODUCTION: 
+Dioptimasi dari sisi efisiensi memori (NumPy/Dict Shift) 
+dan Logging standar industri.
 """
 
 from typing import Dict, List, Set
@@ -10,13 +14,20 @@ import numpy as np
 import pandas as pd
 import pygad
 import os
+import logging
 from collections import Counter
 
 # ────────────────────────────────────────────────────────────────
-DEBUG = os.getenv("DEBUG", "0") == "1"
-def _log(*args, **kwargs):
-    if DEBUG:
-        print(*args, **kwargs)
+# 1. STANDARISASI LOGGING
+# ────────────────────────────────────────────────────────────────
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG if os.getenv("DEBUG", "0") == "1" else logging.INFO)
+# Tambahkan console handler jika belum ada di main.py
+if not logger.handlers:
+    ch = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
 
 # ────────────────────────────────────────────────────────────────
 BASE_SCORE = 0
@@ -35,13 +46,16 @@ cardio_indoor_exercises = {
     "cycle cross trainer", "walking on incline treadmill",
     "walking on treadmill", "walking",
 }
-# cardio_priority_keywords = {"run", "walk", "jog"}
 
 def penalty_duplicate(dup_count: int) -> int:
     return 2 * dup_count
 
 def check_body_part_variation(seen_parts: List[str], day_focus: str,
-                              injured_parts: Set[str], df_subset: pd.DataFrame) -> int:
+                              available_parts: Set[str]) -> int:
+    """
+    Refactored: Menerima available_parts yang sudah dihitung sekali di awal,
+    bukan memproses df_subset berulang kali.
+    """
     unique_parts = set(seen_parts)
     part_counts = Counter(seen_parts)
     most_common_count = part_counts.most_common(1)[0][1] if part_counts else 0
@@ -60,7 +74,6 @@ def check_body_part_variation(seen_parts: List[str], day_focus: str,
 
     penalty = 0
     glossary_parts = glossary_expected_parts.get(day_focus, set())
-    available_parts = set(df_subset["body_part"].str.lower().unique())
     available_glossary_parts = glossary_parts & available_parts
     n_available = len(available_glossary_parts)
 
@@ -81,19 +94,16 @@ def check_body_part_variation(seen_parts: List[str], day_focus: str,
 
     return penalty
 
-def check_muscle_variation(solution_indices: List[int], df_subset: pd.DataFrame,
-                           day_focus: str) -> int:
+def check_muscle_variation(solution_indices: List[int], records: List[Dict]) -> int:
+    """
+    Refactored: Membaca dari List of Dictionaries yang sudah di-precompute,
+    bukan memanggil pd.DataFrame.iloc[idx] dan melakukan string split berulang kali.
+    """
     primary_muscles, secondary_muscles = [], []
     for idx in solution_indices:
-        ex = df_subset.iloc[idx]
-        primary_raw = ex.get("primary_muscle", [])
-        secondary_raw = ex.get("secondary_muscle", [])
-
-        primary_list = primary_raw.split("|") if isinstance(primary_raw, str) else primary_raw
-        secondary_list = secondary_raw.split("|") if isinstance(secondary_raw, str) else secondary_raw
-
-        primary_muscles.extend([p.strip().lower() for p in primary_list if p])
-        secondary_muscles.extend([s.strip().lower() for s in secondary_list if s])
+        ex = records[int(idx)]
+        primary_muscles.extend(ex['precomputed_primary'])
+        secondary_muscles.extend(ex['precomputed_secondary'])
 
     unique_primary = set(primary_muscles)
     unique_secondary = set(secondary_muscles)
@@ -107,22 +117,44 @@ def check_muscle_variation(solution_indices: List[int], df_subset: pd.DataFrame,
 
 
 def _make_fitness_func(day_focus: str, injured_parts: Set[str],
-                       df_subset: pd.DataFrame, preferred_parts: Set[str]   ):
+                       df_subset: pd.DataFrame, preferred_parts: Set[str]):
     focus_lower = day_focus.lower()
     is_fokus_split = focus_lower in split_fokus_body_part
     is_cardio_split = focus_lower in split_cardio
-    is_special_focus = focus_lower in special_focus_body_part
     exercises_per_day = 4 if is_fokus_split else 3 if is_cardio_split else 5
+
+    # ────────────────────────────────────────────────────────────────
+    # 2. DATA PRE-COMPUTATION (THE NUMPY/DICT SHIFT)
+    # ────────────────────────────────────────────────────────────────
+    # Ubah DataFrame menjadi List of Dicts agar akses O(1) dan sangat cepat
+    records = df_subset.to_dict('records')
+    available_parts_set = set()
+
+    for r in records:
+        # Pre-compute string operations
+        bp_lower = str(r.get("body_part", "")).lower()
+        r['precomputed_body_part'] = bp_lower
+        r['precomputed_ex_name'] = str(r.get("exercise_name", "")).lower()
+        available_parts_set.add(bp_lower)
+
+        # Pre-compute muscle splits
+        p_raw = r.get("primary_muscle", [])
+        s_raw = r.get("secondary_muscle", [])
+        p_list = p_raw.split("|") if isinstance(p_raw, str) else (p_raw if isinstance(p_raw, list) else [])
+        s_list = s_raw.split("|") if isinstance(s_raw, str) else (s_raw if isinstance(s_raw, list) else [])
+        
+        r['precomputed_primary'] = [p.strip().lower() for p in p_list if p]
+        r['precomputed_secondary'] = [s.strip().lower() for s in s_list if s]
 
     def fitness_func(ga_instance, solution, _solution_idx):
         score = BASE_SCORE
         seen_body_parts, run_cnt, indoor_cnt, cardio_slots = [], 0, 0, 0
 
         for idx in solution:
-            ex = df_subset.iloc[idx]
-            body_part = ex["body_part"].lower()
-            ex_name = ex["exercise_name"].lower()
-
+            # FAST ACCESS: Menggunakan list index murni (hilangkan bottleneck Pandas)
+            ex = records[int(idx)]
+            body_part = ex['precomputed_body_part']
+            
             # Penalti cedera
             if body_part in injured_parts:
                 score -= 5
@@ -139,28 +171,11 @@ def _make_fitness_func(day_focus: str, injured_parts: Set[str],
 
             seen_body_parts.append(body_part)
 
-            # Skor cardio jika BMI < 30
-            # if body_part == "cardio" and bmi < 30.0 and is_cardio_exercise(ex_name):
-            #     score += 2
+        # Penalti variasi body part (lempar set yang sudah dihitung sekali)
+        score -= check_body_part_variation(seen_body_parts, focus_lower, available_parts_set)
 
-            # # Hitung slot cardio
-            # if body_part == "cardio":
-            #     if any(r in ex_name for r in cardio_run_exercises):
-            #         run_cnt += 1
-            #         cardio_slots += 4
-            #     elif any(i in ex_name for i in cardio_indoor_exercises):
-            #         indoor_cnt += 1
-            #         cardio_slots += 3
-            #     else:
-            #         cardio_slots += 1
-            # else:
-            #     cardio_slots += 1
-
-        # Penalti variasi body part
-        score -= check_body_part_variation(seen_body_parts, focus_lower, injured_parts, df_subset)
-
-        # Penalti variasi otot (tanpa pengecualian)
-        score -= check_muscle_variation(solution, df_subset, focus_lower)
+        # Penalti variasi otot
+        score -= check_muscle_variation(solution, records)
 
         # Penalti duplikat body part
         dup = len(seen_body_parts) - len(set(seen_body_parts))
@@ -199,7 +214,6 @@ def should_add_preference_gene(focus_name: str, preferred_parts: Set[str]) -> bo
         "cardio": {"cardio"},
     }
 
-    # Jangan tambah gene jika fokus langsung body part atau male/female focus
     if focus_name not in focus_map or focus_name in {"male focus", "female focus"}:
         return False
 
@@ -221,7 +235,7 @@ def run_ga_schedule(
     for day_key, focus in schedule.items():
         df_day = daily_exercise_pool.get(day_key)
         if df_day is None or df_day.empty:
-            _log(f"[GA] {day_key} pool kosong — dilewati.")
+            logger.warning(f"[GA] {day_key} pool kosong — dilewati.")
             continue
 
         gene_space = list(range(len(df_day)))
@@ -230,33 +244,9 @@ def run_ga_schedule(
         bonus_gene = 1 if should_add_preference_gene(focus, preferred_parts_set) else 0
         num_genes = base_genes + bonus_gene
 
-        # # exploration and experimental purpose 6s via postman hit (local)
-        # ga = pygad.GA(
-        #     allow_duplicate_genes=False,
-        #     num_generations=120,              
-        #     sol_per_pop=25,                   
-        #     num_parents_mating=8, 
-        #     fitness_func=_make_fitness_func(
-        #         focus, injured_parts_set, df_day, preferred_parts_set
-        #     ),
-        #     num_genes=num_genes,
-        #     gene_type=int,
-        #     gene_space=gene_space,
-        #     parent_selection_type="tournament",
-        #     crossover_type="uniform",
-        #     mutation_type="random",
-        #     mutation_percent_genes=50,      
-        #     keep_parents=3,             
-        #     stop_criteria=None,  
-        #     save_solutions=False,
-        #     suppress_warnings=True,
-        #     on_generation=None,      
-        # )
-
-        # production purpose 758ms, 584ms, 667ms, 563ms, 439ms via postman hit (local)
         ga = pygad.GA(
             allow_duplicate_genes=False,
-            num_generations=25,               # Lebih cepat selesai
+            num_generations=25,
             sol_per_pop=20,      
             num_parents_mating=8,        
             fitness_func=_make_fitness_func(
@@ -276,29 +266,24 @@ def run_ga_schedule(
             on_generation=None,
         )
 
-        _log(f"[GA] Running GA for {day_key} ({focus}), pool size: {len(df_day)}")
+        logger.info(f"Running GA for {day_key} ({focus}), pool size: {len(df_day)}")
         ga.run()
 
         best_genes = ga.best_solution()[0]
-        selected = [df_day.iloc[idx].to_dict() for idx in best_genes]
+        selected = [df_day.iloc[int(idx)].to_dict() for idx in best_genes]
 
-        # Tambahkan blok filter di sini sebelum assign ke daywise_schedule
         if focus.lower() == "cardio":
             run_indices = [i for i, ex in enumerate(selected) if ex["exercise_name"].lower() in cardio_run_exercises]
             indoor_indices = [i for i, ex in enumerate(selected) if ex["exercise_name"].lower() in cardio_indoor_exercises]
 
             if run_indices:
-                # Paksa hanya 1 run saja
                 selected = [selected[run_indices[0]]]
-
             elif indoor_indices:
-                # Potong jadi 2 latihan saja, prioritaskan indoor
                 if len(selected) > 2:
                     selected_sorted = [selected[i] for i in indoor_indices] + [
                         selected[i] for i in range(len(selected)) if i not in indoor_indices
                     ]
                     selected = selected_sorted[:2]
-
 
         daywise_schedule[day_key] = {
             "focus": focus,
