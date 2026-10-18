@@ -63,14 +63,20 @@ async def add_process_time_header(request: Request, call_next):
     response.headers["X-Process-Time"] = f"{process_time:.4f} sec"
     return response
 
-# CORS: Di fase production, ganti ["*"] dengan URL spesifik Vue.js kamu
+# CORS: Fully open (allow all origins).
+# CATATAN: allow_credentials HARUS False selama allow_origins=["*"].
+# Menggabungkan "*" dengan credentials=True itu invalid per spec dan
+# bikin browser menolak respons untuk fetch(credentials:'include').
+# Kalau nanti butuh cookie/auth lintas-origin, ganti ke:
+#   allow_origins=[], allow_origin_regex=".*", allow_credentials=True
+# (middleware akan me-mirror Origin asli, bukan "*").
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Process-Time"]
+    expose_headers=["X-Process-Time"],
 )
 
 # ────────────────────────────────────────────────────────────────
