@@ -25,7 +25,7 @@ The existing recommendation API remains unchanged and public.
 |---|---|
 | [`product-roadmap.md`](product-roadmap.md) | Priorities, 10 phases, release plan, metrics, non-goals |
 | [`backend-plan.md`](backend-plan.md) | Backend deliverables, APIs, jobs, and definition of done per phase |
-| [`roles-and-access.md`](roles-and-access.md) | User roles, RBAC, consent, role vs entitlement vs ownership |
+| [`roles-and-access.md`](roles-and-access.md) | User roles, RBAC, consent, role vs ownership |
 | [`data-model.md`](data-model.md) | Tables, relationships, invariants, migration order |
 | [`p0-1-identity-and-profiles.md`](p0-1-identity-and-profiles.md) | Implemented P0.1 contract |
 | [`p0-2-plan-lifecycle.md`](p0-2-plan-lifecycle.md) | Implemented P0.2 contract |

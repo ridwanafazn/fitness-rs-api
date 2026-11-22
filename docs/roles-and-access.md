@@ -151,18 +151,19 @@ account. API keys are hashed, prefixed, rotatable, and rate-limited.
 
 ---
 
-## Role vs entitlement vs ownership
+## Role vs feature flag vs ownership
 
 These are different concepts:
 
 | Concept | Question | Example |
 |---|---|---|
 | **Role** | Who are you? | member, trainer, org_admin, platform_admin |
-| **Entitlement** | What feature is enabled? | free, pro, gym_10 (not implemented; no billing in this project) |
+| **Feature flag** | Which capability is mounted? | `PLANS_ENABLED`, `ORGANIZATIONS_ENABLED` |
 | **Ownership** | Whose data is this? | self, client, organization |
 
-Never encode `is_premium` inside a role. Never rely only on a JWT claim for
-authorization. Check ownership and feature flags in the database/service layer.
+There are no per-user entitlements or billing in this free project. Never
+encode feature access inside a role. Never rely only on a JWT claim for
+authorization. Check ownership and feature flags in the service layer.
 
 ---
 
@@ -177,14 +178,15 @@ authorization. Check ownership and feature flags in the database/service layer.
 | Read client plan | no | no | consent | no* | break-glass | scoped |
 | Read client injury data | no | no | consent | no | break-glass | no |
 | Write plan review | no | no | consent | no | yes | scoped |
-| View org aggregate | no | no | org member | yes | yes | scoped |
-| Manage org billing | no | no | no | yes | yes | scoped |
+| View org aggregate | no | no | no | yes | yes | scoped |
+| Manage org members/settings | no | no | no | yes | yes | scoped |
 | Triage safety reports | no | no | related only | aggregate | yes | no |
 | Configure dataset/algorithm | no | no | no | no | yes | no |
 | Export own data | local | yes | yes | yes | yes | no |
 
-\* Gym Admin can be granted explicit member consent or an organization-level
-agreement; default is aggregate-only.
+\* Gym Admin does not gain health-data access from organization membership.
+Any client profile/plan/injury access requires an explicit P1.2 trainer
+relationship and scope grant.
 
 ---
 
@@ -267,7 +269,9 @@ client:read:consented
 client:review:consented
 org:read
 org:manage
-billing:manage
+org:invite
+org:member:manage
+org:summary:read
 safety:review
 config:write
 audit:read

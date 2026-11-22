@@ -31,7 +31,7 @@ Out of scope:
 - Workout logs (P0.3).
 - Feedback/safety reports (P0.4).
 - Trainer access (P1.2).
-- Organizations/billing (P2.1).
+- Organizations and memberships (P2.1).
 - Guest accounts stored on the server. Guest remains local-first.
 
 ## Product flow
