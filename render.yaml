@@ -21,8 +21,10 @@ services:
         value: "true"
       - key: METRICS_ENABLED
         value: "true"
+      # Temporary migration compatibility: the old API used a wildcard.
+      # Replace with the exact frontend origin once it is known.
       - key: CORS_ORIGINS
-        sync: false
+        value: "*"
       - key: API_KEY
         sync: false
       - key: RATE_LIMIT_ENABLED

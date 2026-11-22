@@ -59,7 +59,7 @@ def main() -> None:
             start = time.perf_counter()
             response = client.post("/api/v1/recommendation/", json=payload)
             elapsed_ms = (time.perf_counter() - start) * 1000
-            if response.status_code != 200:
+            if response.status_code != 201:
                 raise SystemExit(response.text)
             latencies.append(elapsed_ms)
 

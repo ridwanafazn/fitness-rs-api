@@ -23,7 +23,8 @@ class ExerciseOut(BaseModel):
     equipment: List[Equipment]
     primary_muscle: List[str]
     secondary_muscle: List[str] = Field(default_factory=list)
-    image_url: Optional[str] = None
+    # Preserve the original response key used by the existing frontend.
+    image_url: Optional[str] = Field(None, alias="exercise_image")
 
     @classmethod
     def from_domain(cls, exercise: Exercise) -> ExerciseOut:
@@ -34,5 +35,5 @@ class ExerciseOut(BaseModel):
             equipment=list(exercise.equipment),
             primary_muscle=list(exercise.primary_muscle),
             secondary_muscle=list(exercise.secondary_muscle),
-            image_url=exercise.image_url,
+            exercise_image=exercise.image_url,
         )

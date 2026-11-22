@@ -172,7 +172,7 @@ def test_no_safe_focus_raises():
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("days", [0, 6, 7, -1])
+@pytest.mark.parametrize("days", [0, 8, 9, -1])
 def test_unsupported_days_raise(days):
     with pytest.raises(UnsupportedDaysError):
         build_rule_result(gender=Gender.MALE, bmi=22.0, available_days=days)

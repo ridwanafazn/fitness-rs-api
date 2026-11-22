@@ -52,15 +52,16 @@ def _register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
         request_id = getattr(request.state, "request_id", "-")
-        return JSONResponse(
-            status_code=422,
-            content=error_payload(
-                code="validation_error",
-                message="Payload request tidak valid.",
-                request_id=request_id,
-                details=validation_details(exc.errors()),
-            ),
+        details = validation_details(exc.errors())
+        payload = error_payload(
+            code="validation_error",
+            message="Payload request tidak valid.",
+            request_id=request_id,
+            details=details,
         )
+        # Old clients read ``detail``; keep the key populated for them.
+        payload["detail"] = details
+        return JSONResponse(status_code=422, content=payload)
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:

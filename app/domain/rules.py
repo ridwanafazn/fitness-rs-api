@@ -161,18 +161,23 @@ def build_rule_result(
     Args:
         gender: ``male`` or ``female``.
         bmi: pre-computed BMI.
-        available_days: 1..5.
+        available_days: 1..7; 6-7 are capped to 5.
         preferred_body_part: user focus preferences, already validated.
         injured_body_parts: mapped body parts to avoid.
 
     Raises:
-        UnsupportedDaysError: when ``available_days`` is outside 1..5.
+        UnsupportedDaysError: when ``available_days`` is outside 1..7.
     """
 
-    if available_days < 1 or available_days > 5:
+    if available_days < 1 or available_days > 7:
         raise UnsupportedDaysError(
-            details={"available_days": available_days, "allowed": [1, 2, 3, 4, 5]}
+            details={"available_days": available_days, "allowed": [1, 2, 3, 4, 5, 6, 7]}
         )
+
+    warnings: List[str] = []
+    if available_days > 5:
+        warnings.append("Jumlah hari 6-7 belum didukung; jadwal disusun untuk 5 hari.")
+        available_days = 5
 
     injured = set(injured_body_parts)
 
@@ -244,11 +249,11 @@ def build_rule_result(
                 "day_5": Focus(focus_order[1].value),
             }
 
-    schedule, warnings = _adapt_schedule_for_injuries(schedule, focus_order, injured)
+    schedule, adaptation_warnings = _adapt_schedule_for_injuries(schedule, focus_order, injured)
 
     return RuleResult(
         split_method=split,
         schedule=schedule,
         focus_order=tuple(focus_order),
-        warnings=warnings,
+        warnings=tuple(warnings) + adaptation_warnings,
     )

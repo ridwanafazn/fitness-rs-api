@@ -44,7 +44,7 @@ async def _run_with_timeout(recommender: Recommender, func, *args, **kwargs):
 @router.post(
     "/",
     response_model=RecommendationResponse,
-    status_code=200,
+    status_code=201,
     summary="Buat rencana latihan mingguan",
     responses={
         401: {"model": ErrorResponse, "description": "API key tidak valid"},
@@ -77,7 +77,7 @@ async def create_recommendation(
 @router.post(
     "/by-focus",
     response_model=ByFocusResponse,
-    status_code=200,
+    status_code=201,
     summary="Buat satu sesi latihan untuk fokus tertentu",
     responses={
         401: {"model": ErrorResponse, "description": "API key tidak valid"},

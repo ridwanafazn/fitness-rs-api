@@ -85,7 +85,9 @@ def error_payload(
     error: Dict[str, Any] = {"code": code, "message": message}
     if details is not None:
         error["details"] = details
-    return {"error": error, "request_id": request_id}
+    # ``detail`` is kept for clients built against the old FastAPI default
+    # error shape; new clients should use ``error``.
+    return {"error": error, "request_id": request_id, "detail": message}
 
 
 def validation_details(errors: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:

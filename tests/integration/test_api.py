@@ -26,7 +26,7 @@ def test_health_and_readiness(client):
 @pytest.mark.integration
 def test_valid_recommendation(client, valid_payload):
     response = client.post("/api/v1/recommendation/", json=valid_payload)
-    assert response.status_code == 200, response.text
+    assert response.status_code == 201, response.text
     body = response.json()
 
     assert body["split_type"] == "upperlower"
@@ -41,8 +41,42 @@ def test_valid_recommendation(client, valid_payload):
         ids = [exercise["exercise_id"] for exercise in day["exercises"]]
         assert len(ids) == len(set(ids))
         for exercise in day["exercises"]:
-            assert exercise["image_url"]
+            assert exercise["exercise_image"]
             assert isinstance(exercise["equipment"], list)
+
+
+@pytest.mark.integration
+def test_six_days_is_capped_to_five_for_backward_compatibility(client, valid_payload):
+    response = client.post(
+        "/api/v1/recommendation/",
+        json={**valid_payload, "available_days": 6},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert len(body["days"]) == 5
+    assert body["warnings"]
+
+
+@pytest.mark.integration
+def test_unknown_request_fields_are_ignored_for_backward_compatibility(client, valid_payload):
+    response = client.post(
+        "/api/v1/recommendation/",
+        json={**valid_payload, "goals": "muscle_gain", "age": 25},
+    )
+    assert response.status_code == 201, response.text
+
+
+@pytest.mark.integration
+def test_validation_error_has_legacy_detail_key(client, valid_payload):
+    response = client.post(
+        "/api/v1/recommendation/",
+        json={**valid_payload, "gender": "other"},
+    )
+    assert response.status_code == 422
+    body = response.json()
+    assert body["error"]["code"] == "validation_error"
+    assert body["detail"]
+    assert body["request_id"]
 
 
 @pytest.mark.integration
@@ -67,7 +101,7 @@ def test_settings_seed_is_used_when_request_has_no_seed(dataset_path: Path):
     }
     with TestClient(app) as client:
         response = client.post("/api/v1/recommendation/", json=payload)
-        assert response.status_code == 200, response.text
+        assert response.status_code == 201, response.text
         assert response.json()["seed"] == 123
 
 
@@ -75,8 +109,8 @@ def test_settings_seed_is_used_when_request_has_no_seed(dataset_path: Path):
 def test_same_seed_produces_same_response(client, valid_payload):
     first = client.post("/api/v1/recommendation/", json=valid_payload)
     second = client.post("/api/v1/recommendation/", json=valid_payload)
-    assert first.status_code == 200
-    assert second.status_code == 200
+    assert first.status_code == 201
+    assert second.status_code == 201
     assert first.json() == second.json()
 
 
@@ -88,7 +122,7 @@ def test_injured_body_part_never_appears_in_output(client, valid_payload):
         "available_days": 2,
     }
     response = client.post("/api/v1/recommendation/", json=payload)
-    assert response.status_code == 200, response.text
+    assert response.status_code == 201, response.text
     forbidden = {"back", "glutes", "hamstrings"}
     for day in response.json()["days"]:
         for exercise in day["exercises"]:
@@ -103,7 +137,7 @@ def test_weekly_plan_avoids_cross_day_duplicate_exercises(client, valid_payload)
         "seed": 42,
     }
     response = client.post("/api/v1/recommendation/", json=payload)
-    assert response.status_code == 200, response.text
+    assert response.status_code == 201, response.text
     ids = [
         exercise["exercise_id"] for day in response.json()["days"] for exercise in day["exercises"]
     ]
@@ -119,7 +153,7 @@ def test_knee_injury_adapts_leg_day_instead_of_failing_whole_plan(client, valid_
         "seed": 7,
     }
     response = client.post("/api/v1/recommendation/", json=payload)
-    assert response.status_code == 200, response.text
+    assert response.status_code == 201, response.text
     body = response.json()
     assert len(body["days"]) == 3
     assert body["warnings"]
@@ -135,7 +169,7 @@ def test_by_focus_chest_returns_only_chest(client):
         "/api/v1/recommendation/by-focus",
         json={"day_focus": "chest", "seed": 7},
     )
-    assert response.status_code == 200, response.text
+    assert response.status_code == 201, response.text
     body = response.json()
     assert body["day_focus"] == "chest"
     assert len(body["exercises"]) == 4
@@ -160,7 +194,7 @@ def test_by_focus_injured_area_fails_without_unsafe_fallback(client):
     "override",
     [
         {"gender": "other"},
-        {"available_days": 6},
+        {"available_days": 8},
         {"available_days": 0},
         {"injuries": ["broken_soul"]},
         {"preferred_equipment": ["spaceship"]},
@@ -168,7 +202,6 @@ def test_by_focus_injured_area_fails_without_unsafe_fallback(client):
         {"preferred_body_part": [["chest"]]},
         {"height_cm": 10},
         {"weight_kg": 1000},
-        {"unknown_field": True},
     ],
 )
 def test_invalid_payload_is_rejected(client, valid_payload, override):
@@ -248,7 +281,7 @@ def test_api_key_is_enforced_when_configured(dataset_path: Path):
             json=payload,
             headers={"X-API-Key": "secret-key"},
         )
-        assert authorized.status_code == 200, authorized.text
+        assert authorized.status_code == 201, authorized.text
 
 
 @pytest.mark.integration
@@ -340,7 +373,7 @@ def test_rate_limit_returns_429(dataset_path: Path):
     }
     with TestClient(app) as client:
         first = client.post("/api/v1/recommendation/", json=payload)
-        assert first.status_code == 200
+        assert first.status_code == 201
         assert first.headers["X-RateLimit-Limit"] == "1"
         assert first.headers["X-RateLimit-Remaining"] == "0"
 

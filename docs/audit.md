@@ -21,8 +21,9 @@ still intentionally left for future work.
 - **Preferences outside gender defaults work.** A male user can request glutes;
   a female user can request chest. Focus options are the union of defaults and
   valid preferences.
-- **`available_days` is 1–5.** The old schema accepted 6–7 but the rule table
-  silently produced a 5-day plan.
+- **`available_days` is 1–7 for backward compatibility.** 6–7 are explicitly
+  capped to a 5-day plan and return a warning; the thesis-supported range is
+  1–5.
 - **No silent partial plans.** Every scheduled day must be present in the GA
   output.
 - **Safe schedule adaptation.** If a focus (e.g. `legs`) has too few safe body

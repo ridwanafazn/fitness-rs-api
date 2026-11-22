@@ -11,7 +11,7 @@ It intentionally records where the code differs from the 2025 thesis.
 | `height_cm` | float | 50 < x ≤ 300 |
 | `weight_kg` | float | 10 < x ≤ 400 |
 | `injuries` | list[str] | ≤ 10 items, each ≤ 60 chars |
-| `available_days` | int | 1–5 |
+| `available_days` | int | 1–7 (6–7 capped to 5 for compatibility) |
 | `preferred_body_part` | list[enum] | ≤ 5 |
 | `preferred_equipment` | list[enum] | ≤ 10 |
 | `seed` | int | 0 ≤ x < 2³² |

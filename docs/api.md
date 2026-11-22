@@ -79,7 +79,7 @@ Errors always use:
 
 | Code | Meaning |
 |---:|---|
-| 200 | Recommendation produced |
+| 201 | Recommendation produced |
 | 401 | API key missing/invalid |
 | 413 | Request body too large |
 | 422 | Validation or safety constraint failed |

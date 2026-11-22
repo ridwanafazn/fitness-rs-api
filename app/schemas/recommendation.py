@@ -58,13 +58,17 @@ def _normalise_string_list(value: Any, *, field_name: str) -> List[str]:
 
 
 class RecommendationRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    # Keep the old API's tolerant behaviour: unknown fields are ignored rather
+    # than breaking an existing frontend with a 422.
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
 
     gender: Gender
     height_cm: float = Field(..., gt=50, le=300)
     weight_kg: float = Field(..., gt=10, le=400)
     injuries: List[str] = Field(default_factory=list, max_length=10)
-    available_days: int = Field(..., ge=1, le=5)
+    # 6-7 are accepted for backward compatibility and capped to 5 by the
+    # rule engine, matching the old API's observable behaviour.
+    available_days: int = Field(..., ge=1, le=7)
     preferred_body_part: List[BodyPart] = Field(default_factory=list, max_length=5)
     preferred_equipment: List[Equipment] = Field(default_factory=list, max_length=10)
     seed: Optional[int] = Field(
@@ -148,7 +152,7 @@ class RecommendationResponse(BaseModel):
 
 
 class ByFocusRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
 
     day_focus: Focus
     injuries: List[str] = Field(default_factory=list, max_length=10)

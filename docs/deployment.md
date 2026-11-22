@@ -8,7 +8,9 @@ that endpoint verifies the exercise dataset.
 Environment variables to set in the Render dashboard:
 
 - `ENVIRONMENT=production`
-- `CORS_ORIGINS=https://your-frontend.example`
+- `CORS_ORIGINS=https://your-frontend.example` (the blueprint temporarily uses
+  `*` to match the old API while the frontend origin is being confirmed;
+  tighten it as soon as possible)
 - `ALLOWED_HOSTS=your-api.onrender.com` (include any internal health-check
   hostname, or leave `*` if the platform's health checker uses a host you
   cannot enumerate)

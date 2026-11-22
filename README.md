@@ -19,7 +19,7 @@ dan Algoritma Optimasi Genetika* (UIN Sunan Gunung Djati Bandung).
 Input:
 
 - gender, height, weight
-- available training days (1–5)
+- available training days (1–7; 6–7 are capped to 5 for backward compatibility)
 - injury history (body parts, muscles, or common terms such as `knee`,
   `lower back`, `elbow`)
 - preferred body parts and available equipment
@@ -148,7 +148,7 @@ Example response (truncated):
           "equipment": ["body weight"],
           "primary_muscle": ["rectus abdominis"],
           "secondary_muscle": ["obliques"],
-          "image_url": "https://..."
+          "exercise_image": "https://..."
         }
       ]
     }
@@ -235,7 +235,9 @@ All settings are environment variables (see `.env.example`):
 Production checklist:
 
 1. Set `ENVIRONMENT=production`.
-2. Set explicit `CORS_ORIGINS` and `ALLOWED_HOSTS`.
+2. Set explicit `CORS_ORIGINS` and `ALLOWED_HOSTS`. The Render blueprint
+   temporarily uses `CORS_ORIGINS=*` to avoid breaking the existing frontend;
+   tighten it after confirming the frontend origin.
 3. Set `API_KEY` if the API is public.
 4. Set `TRUST_PROXY_HEADERS=true` only behind Render/Cloud Run.
 5. Use Redis for `RATE_LIMIT_STORAGE_URI` if you run more than one instance.
