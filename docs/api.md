@@ -132,6 +132,24 @@ Mounted only when `WORKOUTS_ENABLED=true`. Full contract:
 `client_session_id` and `client_set_id` provide retry idempotency.
 `POST /sync/batch` returns `applied`, `duplicate`, or `error` per mutation.
 
+## P0.4 feedback and safety endpoints
+
+Mounted only when `FEEDBACK_ENABLED=true`. Full contract:
+[`p0-4-feedback-and-safety.md`](p0-4-feedback-and-safety.md).
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/feedback` | Submit plan/workout feedback |
+| POST | `/api/v1/safety-reports` | Report an unsafe exercise |
+| GET | `/api/v1/admin/safety-reports` | Admin queue (`status`, `severity`, cursor) |
+| PATCH | `/api/v1/admin/safety-reports/{id}` | Triage/escalate/resolve |
+| GET | `/api/v1/admin/feedback` | Feedback list |
+| GET | `/api/v1/admin/audit` | Audit trail |
+| GET | `/api/v1/admin/quality-summary` | Safety/feedback metrics |
+
+Admin endpoints require the `platform_admin` role. Feedback and safety
+submissions are rate-limited per user per hour.
+
 ## Response envelope
 
 Success uses the endpoint-specific schema. Every response includes:

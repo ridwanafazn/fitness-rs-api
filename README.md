@@ -219,6 +219,9 @@ Common codes:
 | `workout_invalid` | 422 | Invalid workout/substitution |
 | `workout_completed` | 409 | Workout already completed |
 | `set_conflict` | 409 | Set number already used |
+| `feedback_invalid` | 422 | Invalid feedback |
+| `safety_report_invalid` | 422 | Invalid safety report |
+| `invalid_safety_transition` | 409 | Invalid report status transition |
 | `internal_error` | 500 | Unexpected server error |
 | `service_unavailable` | 503 | Computation timeout or auth provider unavailable |
 
@@ -248,6 +251,10 @@ All settings are environment variables (see `.env.example`):
 | `AUTH_DEV_SECRET` | empty | Dev-only signing secret, min 32 chars |
 | `PLANS_ENABLED` | `false` | Mount P0.2 plan lifecycle endpoints |
 | `WORKOUTS_ENABLED` | `false` | Mount P0.3 workout/sync endpoints |
+| `FEEDBACK_ENABLED` | `false` | Mount P0.4 feedback/safety/admin endpoints |
+| `FEEDBACK_RATE_LIMIT_PER_HOUR` | `20` | Per-user feedback limit |
+| `SAFETY_REPORT_RATE_LIMIT_PER_HOUR` | `10` | Per-user safety report limit |
+| `ALERT_WEBHOOK_URL` | empty | Optional critical safety-report webhook |
 | `CONSENT_POLICY_VERSION` | `2026-01` | Consent policy version |
 | `ACCOUNT_DELETION_GRACE_DAYS` | `30` | Hard-delete window (job future work) |
 | `RATE_LIMIT_ENABLED` | `true` | Enable the rate-limit middleware |
@@ -280,7 +287,8 @@ Production checklist:
    `Idempotency-Key` handling are ready.
 9. For P0.3, set `WORKOUTS_ENABLED=true` only after the frontend can queue
    offline mutations.
-10. Use an always-on host without cold starts; see [`docs/hosting.md`](docs/hosting.md).
+10. For P0.4, set `FEEDBACK_ENABLED=true` and seed a `platform_admin` manually.
+11. Use an always-on host without cold starts; see [`docs/hosting.md`](docs/hosting.md).
 
 ---
 
@@ -408,6 +416,33 @@ See [`docs/p0-3-workout-execution.md`](docs/p0-3-workout-execution.md).
 
 ---
 
+## Feedback & safety (P0.4)
+
+Mounted only when `FEEDBACK_ENABLED=true`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/feedback` | Rating/difficulty/pain/comment |
+| POST | `/api/v1/safety-reports` | Report unsafe exercise |
+| GET | `/api/v1/admin/safety-reports` | Queue + filters |
+| PATCH | `/api/v1/admin/safety-reports/{id}` | Triage/escalate/resolve |
+| GET | `/api/v1/admin/feedback` | Feedback list |
+| GET | `/api/v1/admin/audit` | Audit trail |
+| GET | `/api/v1/admin/quality-summary` | Metrics |
+
+Rules:
+
+- `platform_admin` is seeded manually, not granted via API.
+- Report transitions: open → triaged/resolved/dismissed; triaged →
+  resolved/dismissed; terminal states cannot reopen.
+- Critical reports trigger an optional `ALERT_WEBHOOK_URL` (best effort).
+- Rate limits are per user per hour.
+- Audit metadata excludes comments, pain areas, reasons, and resolution notes.
+
+See [`docs/p0-4-feedback-and-safety.md`](docs/p0-4-feedback-and-safety.md).
+
+---
+
 ## Quality gates
 
 ```bash
@@ -437,6 +472,8 @@ The test suite covers:
   PDF/ICS, pagination
 - P0.3 workouts: start/session idempotency, set replay/conflict/totals,
   completion, substitution safety, history, offline partial failure and replay
+- P0.4 feedback/safety: rate limits, plan/workout context, admin authorization,
+  report transitions, audit filters, quality summary, PII-free audit
 - Alembic upgrade/downgrade on a fresh SQLite database
 
 CI runs the same gates on Python 3.11 and 3.12 and builds/smokes the Docker
@@ -455,9 +492,9 @@ app/
   domain/         pure rules, focus mapping, injury taxonomy, fitness
   rules/          compatibility facade for the old rule-engine API
   schemas/        Pydantic request/response models
-  services/       dataset loader, filter, GA, orchestration, identity, plans, workouts, audit
+  services/       dataset loader, filter, GA, orchestration, identity, plans, workouts, feedback, audit
 data/             222-row curated exercise dataset
-migrations/       Alembic environment, P0.1 identity, P0.2 plans, P0.3 workouts
+migrations/       Alembic environment, P0.1 identity, P0.2 plans, P0.3 workouts, P0.4 feedback
 tests/            unit, integration, and API tests
 docs/             algorithm, API, deployment, hosting, auth, audit, and product plans
 scripts/          benchmark helper and dev-token helper
@@ -480,6 +517,7 @@ Start with:
 - [`docs/p0-1-identity-and-profiles.md`](docs/p0-1-identity-and-profiles.md) — implemented P0.1 contract
 - [`docs/p0-2-plan-lifecycle.md`](docs/p0-2-plan-lifecycle.md) — implemented P0.2 contract
 - [`docs/p0-3-workout-execution.md`](docs/p0-3-workout-execution.md) — implemented P0.3 contract
+- [`docs/p0-4-feedback-and-safety.md`](docs/p0-4-feedback-and-safety.md) — implemented P0.4 contract
 - [`docs/neon-auth.md`](docs/neon-auth.md) — Neon Auth setup and JWT contract
 - [`docs/hosting.md`](docs/hosting.md) — always-on hosting without cold starts
 
@@ -512,8 +550,9 @@ Container/platform settings:
   CPU-bound
 - set `TRUST_PROXY_HEADERS=true`
 - set `CORS_ORIGINS` and `API_KEY` in the dashboard
-- for P0.1/P0.2/P0.3: set `DATABASE_URL`, run `alembic upgrade head`, then enable
-  `AUTH_*`/`NEON_AUTH_BASE_URL`, `PLANS_ENABLED`, and `WORKOUTS_ENABLED` when ready
+- for P0.1–P0.4: set `DATABASE_URL`, run `alembic upgrade head`, then enable
+  `AUTH_*`/`NEON_AUTH_BASE_URL`, `PLANS_ENABLED`, `WORKOUTS_ENABLED`, and
+  `FEEDBACK_ENABLED` when ready
 
 See [`docs/deployment.md`](docs/deployment.md) and
 [`docs/hosting.md`](docs/hosting.md) for details.

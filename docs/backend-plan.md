@@ -247,6 +247,9 @@ Notes live on the session/exercise/set rows.
 
 # P0.4 — Feedback, safety reports, admin triage
 
+**Status:** implemented behind `FEEDBACK_ENABLED=false`. See
+`p0-4-feedback-and-safety.md` for the contract and tests.
+
 **Goal:** close the trust loop and collect research data.
 
 ### Scope
@@ -259,8 +262,7 @@ Notes live on the session/exercise/set rows.
 
 ### Data
 
-`feedback`, `unsafe_reports`, `safety_events`, `admin_actions` (or reuse
-`audit_log`).
+`feedback`, `unsafe_reports`; admin actions reuse `audit_log`.
 
 ### Endpoints
 
@@ -268,24 +270,29 @@ Notes live on the session/exercise/set rows.
 |---|---|---|
 | POST | `/api/v1/feedback` | rating/difficulty/pain |
 | POST | `/api/v1/safety-reports` | unsafe exercise |
-| GET | `/api/v1/admin/safety-reports` | queue |
-| PATCH | `/api/v1/admin/safety-reports/{id}` | triage/resolve |
+| GET | `/api/v1/admin/safety-reports` | queue + filters/cursor |
+| PATCH | `/api/v1/admin/safety-reports/{id}` | triage/escalate/resolve |
+| GET | `/api/v1/admin/feedback` | feedback list |
 | GET | `/api/v1/admin/audit` | audit trail |
+| GET | `/api/v1/admin/quality-summary` | safety/feedback metrics |
 
 ### Rules
 
 - Safety report severity: low/medium/high/critical.
-- Critical reports trigger an alert to the operator.
-- Admin actions are audited.
+- Critical reports trigger an optional operator webhook.
+- Admin actions are audited; audit metadata excludes reasons/notes/comments.
 - Feedback is linked to plan version and workout when available.
-- Rate limit and anti-spam on anonymous/public reporting.
+- Rate limit feedback/reports per user per hour.
+- Platform admin is seeded manually; never granted via API.
+- Mounted only when `FEEDBACK_ENABLED=true`.
 
 ### Definition of done
 
 - Report is never lost; status transitions are valid.
 - Admin can resolve with a reason.
-- Metrics: reports per 1,000 plans, time-to-resolution.
-- Data retention and delete policy applied.
+- Metrics: reports per 1,000 plans, median time-to-resolution.
+- Feedback/safety data is included in account deletion cleanup by FK cascade or
+  retention policy.
 
 ---
 

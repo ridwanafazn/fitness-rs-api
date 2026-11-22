@@ -83,6 +83,12 @@ class Settings(BaseSettings):
     # P0.3 workout execution. Requires P0.2 plans and a database.
     workouts_enabled: bool = False
 
+    # P0.4 feedback and safety reports. Requires P0.1 auth and a database.
+    feedback_enabled: bool = False
+    feedback_rate_limit_per_hour: int = Field(default=20, ge=1, le=1000)
+    safety_report_rate_limit_per_hour: int = Field(default=10, ge=1, le=1000)
+    alert_webhook_url: Optional[str] = None
+
     # Rate limiting.  memory:// is fine for a single instance; use a Redis URI
     # when running more than one worker/instance.
     rate_limit_enabled: bool = True
@@ -271,6 +277,12 @@ class Settings(BaseSettings):
                 raise ValueError("WORKOUTS_ENABLED membutuhkan PLANS_ENABLED=true")
             if self.is_production and not self.database_url:
                 raise ValueError("DATABASE_URL wajib di production saat workout aktif")
+
+        if self.feedback_enabled:
+            if not self.auth_profiles_enabled:
+                raise ValueError("FEEDBACK_ENABLED membutuhkan AUTH_PROFILES_ENABLED=true")
+            if self.is_production and not self.database_url:
+                raise ValueError("DATABASE_URL wajib di production saat feedback aktif")
 
         return self
 

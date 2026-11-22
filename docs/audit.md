@@ -59,9 +59,9 @@ still intentionally left for future work.
 - CSV path resolved from the project root, not the process CWD.
 - Dead `csv_loader.py`, `dependencies.py`, and empty `app/models` removed.
 - `pyproject.toml` with Ruff, mypy, pytest, and coverage configuration.
-- 206 tests covering rules, injuries, focus, fitness, dataset, GA, API, P0.1
-  auth/profile/consent, P0.2 plan lifecycle, P0.3 workout execution, and SQLite
-  migration upgrade/downgrade.
+- 219 tests covering rules, injuries, focus, fitness, dataset, GA, API, P0.1
+  auth/profile/consent, P0.2 plan lifecycle, P0.3 workout execution, P0.4
+  feedback/safety, and SQLite migration upgrade/downgrade.
 - GitHub Actions CI for Python 3.11/3.12 and Docker build.
 - Docker runs as a non-root user and has a health check.
 - Structured JSON logging and `/ready`.
@@ -110,6 +110,19 @@ still intentionally left for future work.
 - Audit metadata excludes notes and PII.
 - Mounted only when `WORKOUTS_ENABLED=true`.
 
+### P0.4 feedback and safety
+
+- SQLAlchemy models and Alembic migration for `feedback` and `unsafe_reports`.
+- Plan/workout feedback with rating, difficulty, pain, and comment.
+- Safety reports from plan exercise, workout, or dataset exercise context.
+- Severity/status transitions with platform-admin triage.
+- Per-user hourly rate limits.
+- Optional critical-report webhook with no PII in the payload.
+- Admin queue filters/pagination, feedback list, audit trail, and quality
+  summary (reports per 1,000 plans, median resolution time).
+- PII-free audit metadata.
+- Mounted only when `FEEDBACK_ENABLED=true`.
+
 
 ### Dependencies
 
@@ -145,7 +158,9 @@ still intentionally left for future work.
   if it grows.
 - P0.3 has no server-side rest timer or progress charts; those are client-side /
   P1.1.
-- Trainer access and feedback are not implemented yet (P1.2/P0.4).
+- P0.4 admin triage is platform-admin only; trainer/medical reviewer roles are
+  P1.2.
+- Critical alerts are best-effort webhooks, not guaranteed delivery.
 - Share links are plan-wide, not per-version; no public discovery/social layer.
 - `/metrics` should be protected in a public deployment.
 - A shared Redis store is required for rate limiting across multiple instances.

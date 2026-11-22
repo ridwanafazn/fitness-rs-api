@@ -271,17 +271,23 @@ feedback
   rating, difficulty, pain, pain_area, comment, created_at
 
 unsafe_reports
-  id, reporter_user_id, plan_id, plan_exercise_id, exercise_id,
-  reason, severity, status, resolution_note, resolved_by,
-  created_at, resolved_at
+  id, reporter_user_id, plan_id, plan_exercise_id, workout_session_id,
+  exercise_id, exercise_name, reason, severity, status,
+  resolution_note, resolved_by, triaged_at, resolved_at,
+  created_at, updated_at
 ```
 
 Rules:
 
 - `severity`: `low`, `medium`, `high`, `critical`.
 - `status`: `open`, `triaged`, `resolved`, `dismissed`.
-- Critical reports alert the operator.
-- Comments are PII; do not log them.
+- Allowed transitions: open → triaged/resolved/dismissed; triaged →
+  resolved/dismissed; resolved/dismissed are terminal.
+- Context IDs use `SET NULL` on hard delete so safety records survive.
+- `reason`, `resolution_note`, comments, and pain areas are sensitive; never
+  log them or put them in audit metadata.
+- Critical reports trigger an optional operator webhook.
+- Feedback/safety submissions are rate-limited per user per hour.
 
 ---
 
@@ -334,9 +340,11 @@ Rules:
 Steps 1–7 are implemented in `migrations/versions/0001_identity_profiles.py`.
 The P0.2 plan tables are implemented in
 `migrations/versions/0002_plans.py`. The P0.3 workout tables are implemented in
-`migrations/versions/0003_workouts.py`. Each migration must be reversible where
-practical, and tested against a fresh database. All migrations are tested on
-SQLite (upgrade + downgrade); the Postgres runbook is in `hosting.md`.
+`migrations/versions/0003_workouts.py`. The P0.4 feedback/safety tables are
+implemented in `migrations/versions/0004_feedback.py`. Each migration must be
+reversible where practical, and tested against a fresh database. All migrations
+are tested on SQLite (upgrade + downgrade); the Postgres runbook is in
+`hosting.md`.
 
 ---
 

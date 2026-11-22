@@ -50,6 +50,15 @@ P0.3 workouts:
 - `WORKOUTS_ENABLED=true` only after the frontend can queue offline mutations.
 - `WORKOUTS_ENABLED` requires `PLANS_ENABLED=true` and a database.
 
+P0.4 feedback/safety:
+
+- `FEEDBACK_ENABLED=true` to mount feedback, safety-report, and admin endpoints.
+- `FEEDBACK_RATE_LIMIT_PER_HOUR` and `SAFETY_REPORT_RATE_LIMIT_PER_HOUR` are
+  per-user limits.
+- `ALERT_WEBHOOK_URL` is optional; critical reports use it with a PII-free
+  payload.
+- Seed `platform_admin` manually; see `p0-4-feedback-and-safety.md`.
+
 See [`neon-auth.md`](neon-auth.md) for the Neon Auth token contract.
 
 Run the migration before shifting traffic:

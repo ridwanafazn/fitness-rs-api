@@ -653,3 +653,100 @@ class ClientMutation(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )
+
+class Feedback(Base):
+    __tablename__ = "feedback"
+    __table_args__ = (
+        CheckConstraint(
+            "rating IS NULL OR (rating >= 1 AND rating <= 5)",
+            name="ck_feedback_rating",
+        ),
+        CheckConstraint(
+            "difficulty IS NULL OR difficulty IN ('too_easy', 'just_right', 'too_hard')",
+            name="ck_feedback_difficulty",
+        ),
+        Index("ix_feedback_owner_created", "owner_user_id", "created_at"),
+        Index("ix_feedback_plan", "plan_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    plan_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("plans.id", ondelete="SET NULL"),
+    )
+    plan_version_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("plan_versions.id", ondelete="SET NULL"),
+    )
+    workout_session_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("workout_sessions.id", ondelete="SET NULL"),
+    )
+    rating: Mapped[Optional[int]] = mapped_column(Integer)
+    difficulty: Mapped[Optional[str]] = mapped_column(String(16))
+    pain: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    pain_area: Mapped[Optional[str]] = mapped_column(String(60))
+    comment: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+
+class UnsafeReport(Base):
+    __tablename__ = "unsafe_reports"
+    __table_args__ = (
+        CheckConstraint(
+            "severity IN ('low', 'medium', 'high', 'critical')",
+            name="ck_unsafe_reports_severity",
+        ),
+        CheckConstraint(
+            "status IN ('open', 'triaged', 'resolved', 'dismissed')",
+            name="ck_unsafe_reports_status",
+        ),
+        Index("ix_unsafe_reports_status_created", "status", "created_at"),
+        Index("ix_unsafe_reports_severity", "severity"),
+        Index("ix_unsafe_reports_reporter_created", "reporter_user_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    reporter_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="SET NULL"),
+    )
+    plan_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("plans.id", ondelete="SET NULL"),
+    )
+    plan_exercise_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("plan_exercises.id", ondelete="SET NULL"),
+    )
+    workout_session_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("workout_sessions.id", ondelete="SET NULL"),
+    )
+    exercise_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    exercise_name: Mapped[Optional[str]] = mapped_column(String(255))
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[str] = mapped_column(
+        String(16), default="medium", nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(16), default="open", nullable=False)
+    resolution_note: Mapped[Optional[str]] = mapped_column(Text)
+    resolved_by: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="SET NULL"),
+    )
+    triaged_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )

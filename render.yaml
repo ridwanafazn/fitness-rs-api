@@ -40,6 +40,8 @@ services:
         value: "false"
       - key: WORKOUTS_ENABLED
         value: "false"
+      - key: FEEDBACK_ENABLED
+        value: "false"
       - key: RATE_LIMIT_ENABLED
         value: "true"
       - key: RATE_LIMIT

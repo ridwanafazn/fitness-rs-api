@@ -154,3 +154,11 @@ def get_current_principal(
         roles = ["user"]
 
     return Principal(user=user, roles=sorted(roles), claims=claims)
+
+
+def require_platform_admin(
+    principal: Principal = Depends(get_current_principal),
+) -> Principal:
+    if "platform_admin" not in principal.roles:
+        raise ForbiddenError("Akses platform admin diperlukan.")
+    return principal

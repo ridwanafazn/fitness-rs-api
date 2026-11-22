@@ -157,6 +157,37 @@ class SetConflictError(ConflictError):
     message = "Nomor set sudah dipakai untuk exercise ini."
 
 
+class FeedbackNotFoundError(NotFoundError):
+    code = "feedback_not_found"
+    message = "Feedback tidak ditemukan."
+
+
+class SafetyReportNotFoundError(NotFoundError):
+    code = "safety_report_not_found"
+    message = "Safety report tidak ditemukan."
+
+
+class FeedbackValidationError(InvalidInputError):
+    code = "feedback_invalid"
+    message = "Data feedback tidak valid."
+
+
+class SafetyReportValidationError(InvalidInputError):
+    code = "safety_report_invalid"
+    message = "Data safety report tidak valid."
+
+
+class SafetyTransitionError(ConflictError):
+    code = "invalid_safety_transition"
+    message = "Transisi status safety report tidak valid."
+
+
+class RateLimitExceededError(AppError):
+    code = "rate_limit_exceeded"
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    message = "Terlalu banyak request. Coba lagi nanti."
+
+
 class ProfileValidationError(InvalidInputError):
     code = "validation_error"
     message = "Data profil tidak valid."

@@ -55,6 +55,13 @@ maintainer privately (GitHub: `@ridwanafazn`) with:
 - PDF/ICS exports are owner-only and audited.
 - P0.3 workouts store set logs, notes, and an injury snapshot. Workout access is
   owner-scoped; set/session client IDs are unique per owner.
+- P0.4 feedback/safety stores comments, pain areas, report reasons, and admin
+  resolution notes. These are sensitive; they are never logged or put in audit
+  metadata.
+- Safety reports survive user/plan deletion via `SET NULL` context IDs.
+- Platform-admin access is role-checked and audit-logged.
+- Critical-report webhooks contain only report id, exercise id, severity, and
+  status.
 - Audit metadata excludes workout notes and injury terms.
 - Do not add new categories of health data without reviewing consent, retention,
   and access controls.

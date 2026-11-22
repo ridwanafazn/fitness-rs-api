@@ -7,6 +7,8 @@ This directory is the planning and implementation source of truth.
 - **P0.2** plan lifecycle is implemented behind `PLANS_ENABLED=false`.
 - **P0.3** workout execution/offline sync is implemented behind
   `WORKOUTS_ENABLED=false`.
+- **P0.4** feedback/safety/admin triage is implemented behind
+  `FEEDBACK_ENABLED=false`.
 - Neon Auth is the selected identity provider; see `neon-auth.md`.
 
 The existing recommendation API remains unchanged and public.
@@ -22,6 +24,7 @@ The existing recommendation API remains unchanged and public.
 | [`p0-1-identity-and-profiles.md`](p0-1-identity-and-profiles.md) | Implemented P0.1 contract |
 | [`p0-2-plan-lifecycle.md`](p0-2-plan-lifecycle.md) | Implemented P0.2 contract |
 | [`p0-3-workout-execution.md`](p0-3-workout-execution.md) | Implemented P0.3 contract |
+| [`p0-4-feedback-and-safety.md`](p0-4-feedback-and-safety.md) | Implemented P0.4 contract |
 | [`neon-auth.md`](neon-auth.md) | Neon Auth setup and JWT contract |
 | [`provisioned-resources.md`](provisioned-resources.md) | Neon project/Auth IDs, migration head, local env loading |
 | [`hosting.md`](hosting.md) | Always-on cloud hosting without cold starts; free/PAYG options |
@@ -33,7 +36,7 @@ The existing recommendation API remains unchanged and public.
 
 - FastAPI `0.165`, Starlette `1.10`, Pydantic `2.14`, Python 3.11+
 - SQLAlchemy 2 + Alembic + psycopg 3 + PyJWT + ReportLab
-- 206 tests passing
+- 219 tests passing
 - Live API on Render, live frontend on Cloudflare Pages (`jymz.pages.dev`)
 - Existing endpoints remain compatible:
   - `POST /api/v1/recommendation/` (201)
@@ -65,6 +68,14 @@ The existing recommendation API remains unchanged and public.
   - `POST /api/v1/workouts/{id}/exercises/{exercise_id}/substitute`
   - `PATCH/DELETE /api/v1/sets/{id}`
   - `POST /api/v1/sync/batch`
+- P0.4 endpoints (`FEEDBACK_ENABLED=true`):
+  - `POST /api/v1/feedback`
+  - `POST /api/v1/safety-reports`
+  - `GET /api/v1/admin/safety-reports`
+  - `PATCH /api/v1/admin/safety-reports/{id}`
+  - `GET /api/v1/admin/feedback`
+  - `GET /api/v1/admin/audit`
+  - `GET /api/v1/admin/quality-summary`
 
 ## Implementation status
 
@@ -73,7 +84,7 @@ The existing recommendation API remains unchanged and public.
 | P0.1 Identity, profile, consent | Implemented behind feature flag; Neon Auth + production Postgres configured on a dedicated Neon branch |
 | P0.2 Plan lifecycle | Implemented behind feature flag |
 | P0.3 Workout execution | Implemented behind feature flag |
-| P0.4 Feedback & safety | Next |
+| P0.4 Feedback & safety | Implemented behind feature flag; needs frontend and admin seeding |
 | P1/P2 | Planned |
 
 ## Decision status
