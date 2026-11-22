@@ -10,6 +10,7 @@ This directory is the planning and implementation source of truth.
 - **P0.4** feedback/safety/admin triage is implemented behind
   `FEEDBACK_ENABLED=false`.
 - **P1.1** progress/insights is implemented behind `PROGRESS_ENABLED=false`.
+- **P1.2** trainer workspace is implemented behind `TRAINER_ENABLED=false`.
 - Neon Auth is the selected identity provider; see `neon-auth.md`.
 
 The existing recommendation API remains unchanged and public.
@@ -27,6 +28,7 @@ The existing recommendation API remains unchanged and public.
 | [`p0-3-workout-execution.md`](p0-3-workout-execution.md) | Implemented P0.3 contract |
 | [`p0-4-feedback-and-safety.md`](p0-4-feedback-and-safety.md) | Implemented P0.4 contract |
 | [`p1-1-progress-and-insights.md`](p1-1-progress-and-insights.md) | Implemented P1.1 contract |
+| [`p1-2-trainer-workspace.md`](p1-2-trainer-workspace.md) | Implemented P1.2 contract |
 | [`neon-auth.md`](neon-auth.md) | Neon Auth setup and JWT contract |
 | [`provisioned-resources.md`](provisioned-resources.md) | Neon project/Auth IDs, migration head, local env loading |
 | [`hosting.md`](hosting.md) | Always-on cloud hosting without cold starts; free/PAYG options |
@@ -38,7 +40,7 @@ The existing recommendation API remains unchanged and public.
 
 - FastAPI `0.165`, Starlette `1.10`, Pydantic `2.14`, Python 3.11+
 - SQLAlchemy 2 + Alembic + psycopg 3 + PyJWT + ReportLab
-- 227 tests passing
+- 240 tests passing
 - Live API on Render, live frontend on Cloudflare Pages (`jymz.pages.dev`)
 - Existing endpoints remain compatible:
   - `POST /api/v1/recommendation/` (201)
@@ -82,6 +84,16 @@ The existing recommendation API remains unchanged and public.
   - `GET /api/v1/me/progress`
   - `GET /api/v1/me/history`
   - `GET /api/v1/me/insights`
+- P1.2 endpoints (`TRAINER_ENABLED=true`):
+  - `GET/PUT /api/v1/trainer/profile`
+  - `POST/GET /api/v1/trainer/invitations`
+  - `POST /api/v1/trainer/invitations/{token}/accept`, `/decline`
+  - `GET /api/v1/trainer/clients`
+  - `GET /api/v1/trainer/clients/{id}/plans`, `/workouts`, `/feedback`, `/progress`
+  - `POST /api/v1/trainer/clients/{id}/comments`
+  - `PATCH /api/v1/trainer/plans/{plan_id}/review`
+  - `GET /api/v1/me/trainers`, `DELETE /api/v1/me/trainers/{trainer_id}`
+  - `GET /api/v1/me/trainer/comments`, `/reviews`
 
 ## Implementation status
 
@@ -92,8 +104,8 @@ The existing recommendation API remains unchanged and public.
 | P0.3 Workout execution | Implemented behind feature flag |
 | P0.4 Feedback & safety | Implemented behind feature flag |
 | P1.1 Progress & insights | Implemented behind feature flag; needs frontend charts |
-| P1.2 Trainer workspace | Next |
-| P1.3 Notifications | Planned |
+| P1.2 Trainer workspace | Implemented behind feature flag; needs frontend UI + manual trainer role |
+| P1.3 Notifications | Next |
 | P2 | Planned |
 
 ## Decision status

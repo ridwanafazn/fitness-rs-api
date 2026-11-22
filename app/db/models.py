@@ -874,3 +874,217 @@ class WeeklyReview(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
     )
+
+class TrainerProfile(Base):
+    __tablename__ = "trainer_profiles"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_trainer_profiles_user"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    bio: Mapped[Optional[str]] = mapped_column(Text)
+    specialties: Mapped[List[str]] = mapped_column(
+        json_type(), default=list, nullable=False
+    )
+    years_experience: Mapped[Optional[int]] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+
+class TrainerClient(Base):
+    __tablename__ = "trainer_clients"
+    __table_args__ = (
+        UniqueConstraint(
+            "trainer_user_id",
+            "client_user_id",
+            name="uq_trainer_clients_pair",
+        ),
+        CheckConstraint(
+            "status IN ('active', 'revoked')",
+            name="ck_trainer_clients_status",
+        ),
+        Index("ix_trainer_clients_trainer", "trainer_user_id"),
+        Index("ix_trainer_clients_client", "client_user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    trainer_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    client_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(String(16), default="active", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class TrainerInvitation(Base):
+    __tablename__ = "trainer_invitations"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_trainer_invitations_token"),
+        CheckConstraint(
+            "status IN ('pending', 'accepted', 'declined', 'revoked', 'expired')",
+            name="ck_trainer_invitations_status",
+        ),
+        Index("ix_trainer_invitations_trainer", "trainer_user_id"),
+        Index("ix_trainer_invitations_email", "client_email"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    trainer_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    client_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="SET NULL"),
+    )
+    client_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    requested_scopes: Mapped[List[str]] = mapped_column(
+        json_type(), default=list, nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False)
+    message: Mapped[Optional[str]] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    declined_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+
+class AccessGrant(Base):
+    __tablename__ = "access_grants"
+    __table_args__ = (
+        UniqueConstraint(
+            "trainer_client_id",
+            "scope",
+            name="uq_access_grants_client_scope",
+        ),
+        CheckConstraint(
+            "scope IN ('plans', 'workouts', 'feedback', 'progress')",
+            name="ck_access_grants_scope",
+        ),
+        Index("ix_access_grants_client", "trainer_client_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    trainer_client_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("trainer_clients.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    scope: Mapped[str] = mapped_column(String(32), nullable=False)
+    granted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+
+class PlanReview(Base):
+    __tablename__ = "plan_reviews"
+    __table_args__ = (
+        UniqueConstraint(
+            "plan_id",
+            "trainer_user_id",
+            name="uq_plan_reviews_plan_trainer",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'changes_requested')",
+            name="ck_plan_reviews_status",
+        ),
+        Index("ix_plan_reviews_plan", "plan_id"),
+        Index("ix_plan_reviews_trainer", "trainer_user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("plans.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    plan_version_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("plan_versions.id", ondelete="SET NULL"),
+    )
+    trainer_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(
+        String(16), default="pending", nullable=False
+    )
+    note: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+
+class TrainerComment(Base):
+    __tablename__ = "trainer_comments"
+    __table_args__ = (
+        Index("ix_trainer_comments_client_created", "client_user_id", "created_at"),
+        Index("ix_trainer_comments_trainer_created", "trainer_user_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    trainer_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    client_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    plan_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("plans.id", ondelete="SET NULL"),
+    )
+    workout_session_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("workout_sessions.id", ondelete="SET NULL"),
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )

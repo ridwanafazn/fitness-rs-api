@@ -164,6 +164,33 @@ Mounted only when `PROGRESS_ENABLED=true`. Full contract:
 `/me/progress` accepts `from_date`, `to_date`, and `timezone`; defaults to the
 last 30 days. `timezone` is IANA, e.g. `Asia/Jakarta`.
 
+## P1.2 trainer endpoints
+
+Mounted only when `TRAINER_ENABLED=true`. Full contract:
+[`p1-2-trainer-workspace.md`](p1-2-trainer-workspace.md).
+
+| Method | Path | Actor | Purpose |
+|---|---|---|---|
+| GET/PUT | `/api/v1/trainer/profile` | trainer | Profile |
+| POST/GET | `/api/v1/trainer/invitations` | trainer | Invite/list invitations |
+| POST | `/api/v1/trainer/invitations/{token}/accept` | client | Accept with scopes |
+| POST | `/api/v1/trainer/invitations/{token}/decline` | client | Decline |
+| GET | `/api/v1/trainer/clients` | trainer | Active clients |
+| GET | `/api/v1/trainer/clients/{id}/plans` | trainer | Plans (`plans` scope) |
+| GET | `/api/v1/trainer/clients/{id}/workouts` | trainer | Workouts (`workouts`) |
+| GET | `/api/v1/trainer/clients/{id}/feedback` | trainer | Feedback (`feedback`) |
+| GET | `/api/v1/trainer/clients/{id}/progress` | trainer | Progress (`progress`) |
+| POST | `/api/v1/trainer/clients/{id}/comments` | trainer | Comment (`plans`) |
+| PATCH | `/api/v1/trainer/plans/{plan_id}/review` | trainer | Review/approve plan |
+| GET | `/api/v1/me/trainers` | client | Trainers with access |
+| DELETE | `/api/v1/me/trainers/{trainer_id}` | client | Revoke access |
+| GET | `/api/v1/me/trainer/comments` | client | Comments from trainers |
+| GET | `/api/v1/me/trainer/reviews` | client | Plan reviews |
+
+The `trainer` role is seeded manually. Client scopes are `plans`, `workouts`,
+`feedback`, and `progress`; missing/revoked scope returns `403
+trainer_access_denied`.
+
 ## Response envelope
 
 Success uses the endpoint-specific schema. Every response includes:

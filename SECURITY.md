@@ -64,6 +64,9 @@ maintainer privately (GitHub: `@ridwanafazn`) with:
   status.
 - P1.1 progress tables store aggregated workout metrics and personal records;
   access is owner-scoped.
+- P1.2 trainer access is relationship- and scope-scoped; client revocation is
+  immediate. Invitation tokens are hashed. Comments, emails, and review notes
+  are never logged or put in audit metadata.
 - Audit metadata excludes workout notes and injury terms.
 - Do not add new categories of health data without reviewing consent, retention,
   and access controls.

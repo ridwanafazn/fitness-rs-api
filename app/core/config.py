@@ -92,6 +92,9 @@ class Settings(BaseSettings):
     # P1.1 progress aggregates and insights. Requires P0.3 workouts.
     progress_enabled: bool = False
 
+    # P1.2 trainer workspace. Requires P0.2 plans and a database.
+    trainer_enabled: bool = False
+
     # Rate limiting.  memory:// is fine for a single instance; use a Redis URI
     # when running more than one worker/instance.
     rate_limit_enabled: bool = True
@@ -292,6 +295,12 @@ class Settings(BaseSettings):
                 raise ValueError("PROGRESS_ENABLED membutuhkan WORKOUTS_ENABLED=true")
             if self.is_production and not self.database_url:
                 raise ValueError("DATABASE_URL wajib di production saat progress aktif")
+
+        if self.trainer_enabled:
+            if not self.plans_enabled:
+                raise ValueError("TRAINER_ENABLED membutuhkan PLANS_ENABLED=true")
+            if self.is_production and not self.database_url:
+                raise ValueError("DATABASE_URL wajib di production saat trainer aktif")
 
         return self
 

@@ -324,11 +324,54 @@ Rules:
 
 ---
 
+## P1.2 trainer tables
+
+```text
+trainer_profiles
+  id, user_id, display_name, bio, specialties jsonb,
+  years_experience, created_at, updated_at
+
+trainer_clients
+  id, trainer_user_id, client_user_id, status, created_at,
+  updated_at, revoked_at
+
+trainer_invitations
+  id, trainer_user_id, client_user_id, client_email, token_hash,
+  requested_scopes jsonb, status, message, expires_at,
+  accepted_at, declined_at, revoked_at, created_at, updated_at
+
+access_grants
+  id, trainer_client_id, scope, granted_at, revoked_at,
+  created_at, updated_at
+
+plan_reviews
+  id, plan_id, plan_version_id, trainer_user_id, status, note,
+  created_at, updated_at
+
+trainer_comments
+  id, trainer_user_id, client_user_id, plan_id, workout_session_id,
+  body, created_at
+```
+
+Rules:
+
+- `trainer_clients` unique per trainer/client.
+- `access_grants` unique per relationship/scope; scopes are `plans`,
+  `workouts`, `feedback`, `progress`.
+- Invitation tokens are hashed, expire after 14 days, and are shown once.
+- `plan_reviews` unique per plan/trainer; statuses are `pending`, `approved`,
+  `changes_requested`.
+- Client/context IDs use `SET NULL` where history should survive.
+- Comments, emails, and review notes are sensitive; never log them or put them
+  in audit metadata.
+- Client revocation sets the relationship and all grants to revoked.
+
+---
+
 ## P1/P2 tables (summary)
 
 | Phase | Tables |
 |---|---|
-| P1.2 | `trainer_profiles`, `trainer_clients`, `invitations`, `access_grants`, `plan_reviews`, `comments` |
 | P1.3 | `notification_preferences`, `devices`, `integration_tokens`, `outbox` |
 | P2.1 | `organizations`, `memberships`, `subscriptions`, `entitlements`, `invoices`, `api_clients` |
 | P2.2 | `events`, `experiments`, `assignments`, `quality_reviews` |
@@ -348,7 +391,9 @@ Rules:
 7. A share token never includes user id, email, injury data, or notes.
 8. A workout set is unique per `(user_id, client_mutation_id)`.
 9. Audit rows are append-only.
-10. Soft-deleted or deletion-pending users cannot authenticate; their data is
+10. A trainer can read client data only through an active relationship and an
+    active scope grant; revocation is effective immediately.
+11. Soft-deleted or deletion-pending users cannot authenticate; their data is
     removed by a retention job.
 
 ---
@@ -368,15 +413,18 @@ Rules:
    `client_mutations`
 10. `feedback` → `unsafe_reports`
 11. `daily_metrics` → `personal_records` → `weekly_reviews`
-12. P1/P2 tables
+12. `trainer_profiles` → `trainer_clients` → `trainer_invitations` →
+    `access_grants` → `plan_reviews` → `trainer_comments`
+13. P2 tables
 
 Steps 1–7 are implemented in `migrations/versions/0001_identity_profiles.py`.
 The P0.2 plan tables are implemented in
 `migrations/versions/0002_plans.py`. The P0.3 workout tables are implemented in
 `migrations/versions/0003_workouts.py`. The P0.4 feedback/safety tables are
 implemented in `migrations/versions/0004_feedback.py`. The P1.1 progress tables
-are implemented in `migrations/versions/0005_progress.py`. Each migration must
-be reversible where practical, and tested against a fresh database. All
+are implemented in `migrations/versions/0005_progress.py`. The P1.2 trainer
+tables are implemented in `migrations/versions/0006_trainer.py`. Each migration
+must be reversible where practical, and tested against a fresh database. All
 migrations are tested on SQLite (upgrade + downgrade); the Postgres runbook is
 in `hosting.md`.
 

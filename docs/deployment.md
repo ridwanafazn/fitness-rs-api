@@ -66,6 +66,13 @@ P1.1 progress:
 - Rebuild-on-read keeps aggregates consistent; `scripts/rebuild_progress.py`
   supports backfill.
 
+P1.2 trainer:
+
+- `TRAINER_ENABLED=true` to mount trainer/client trainer endpoints.
+- Requires `PLANS_ENABLED=true`.
+- Seed the `trainer` role manually; see `p1-2-trainer-workspace.md`.
+- Invite delivery is manual until P1.3 notifications.
+
 See [`neon-auth.md`](neon-auth.md) for the Neon Auth token contract.
 
 Run the migration before shifting traffic:

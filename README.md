@@ -223,6 +223,12 @@ Common codes:
 | `safety_report_invalid` | 422 | Invalid safety report |
 | `invalid_safety_transition` | 409 | Invalid report status transition |
 | `progress_invalid` | 422 | Invalid progress range/timezone |
+| `trainer_profile_not_found` | 404 | Trainer profile missing |
+| `trainer_invitation_not_found` | 404 | Invite missing/expired |
+| `trainer_invitation_conflict` | 409 | Invite/relationship conflict |
+| `trainer_client_not_found` | 404 | Client not in trainer workspace |
+| `trainer_access_denied` | 403 | Consent/scope missing |
+| `trainer_invalid` | 422 | Invalid trainer payload |
 | `internal_error` | 500 | Unexpected server error |
 | `service_unavailable` | 503 | Computation timeout or auth provider unavailable |
 
@@ -257,6 +263,7 @@ All settings are environment variables (see `.env.example`):
 | `SAFETY_REPORT_RATE_LIMIT_PER_HOUR` | `10` | Per-user safety report limit |
 | `ALERT_WEBHOOK_URL` | empty | Optional critical safety-report webhook |
 | `PROGRESS_ENABLED` | `false` | Mount P1.1 progress/history/insights endpoints |
+| `TRAINER_ENABLED` | `false` | Mount P1.2 trainer workspace endpoints |
 | `CONSENT_POLICY_VERSION` | `2026-01` | Consent policy version |
 | `ACCOUNT_DELETION_GRACE_DAYS` | `30` | Hard-delete window (job future work) |
 | `RATE_LIMIT_ENABLED` | `true` | Enable the rate-limit middleware |
@@ -291,7 +298,8 @@ Production checklist:
    offline mutations.
 10. For P0.4, set `FEEDBACK_ENABLED=true` and seed a `platform_admin` manually.
 11. For P1.1, set `PROGRESS_ENABLED=true` after workouts are live.
-12. Use an always-on host without cold starts; see [`docs/hosting.md`](docs/hosting.md).
+12. For P1.2, set `TRAINER_ENABLED=true` and seed the `trainer` role manually.
+13. Use an always-on host without cold starts; see [`docs/hosting.md`](docs/hosting.md).
 
 ---
 
@@ -465,6 +473,41 @@ See [`docs/p1-1-progress-and-insights.md`](docs/p1-1-progress-and-insights.md).
 
 ---
 
+## Trainer workspace (P1.2)
+
+Mounted only when `TRAINER_ENABLED=true`. Requires plans and a manually seeded
+`trainer` role.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET/PUT | `/api/v1/trainer/profile` | Trainer profile |
+| POST/GET | `/api/v1/trainer/invitations` | Invite/list clients |
+| POST | `/api/v1/trainer/invitations/{token}/accept` | Accept with scopes |
+| POST | `/api/v1/trainer/invitations/{token}/decline` | Decline |
+| GET | `/api/v1/trainer/clients` | Active clients |
+| GET | `/api/v1/trainer/clients/{id}/plans` | Plans (`plans` scope) |
+| GET | `/api/v1/trainer/clients/{id}/workouts` | Workouts (`workouts`) |
+| GET | `/api/v1/trainer/clients/{id}/feedback` | Feedback (`feedback`) |
+| GET | `/api/v1/trainer/clients/{id}/progress` | Progress (`progress`) |
+| POST | `/api/v1/trainer/clients/{id}/comments` | Comment |
+| PATCH | `/api/v1/trainer/plans/{plan_id}/review` | Review/approve plan |
+| GET | `/api/v1/me/trainers` | Client's trainers |
+| DELETE | `/api/v1/me/trainers/{trainer_id}` | Revoke access |
+| GET | `/api/v1/me/trainer/comments` | Client comments |
+| GET | `/api/v1/me/trainer/reviews` | Client plan reviews |
+
+Rules:
+
+- Invitation tokens are hashed, expire after 14 days, and are shown once.
+- Client consent is scoped: `plans`, `workouts`, `feedback`, `progress`.
+- Cross-trainer access is denied; every client-data read is audited.
+- Client revocation is immediate.
+- Comments/review notes/emails never appear in audit metadata.
+
+See [`docs/p1-2-trainer-workspace.md`](docs/p1-2-trainer-workspace.md).
+
+---
+
 ## Quality gates
 
 ```bash
@@ -498,6 +541,8 @@ The test suite covers:
   report transitions, audit filters, quality summary, PII-free audit
 - P1.1 progress: daily/weekly aggregates, deleted-set consistency, streak,
   history pagination, PRs, insights
+- P1.2 trainer: role gating, invitation accept/decline/expiry, scope enforcement,
+  cross-trainer isolation, comments/reviews, revocation, PII-free audit
 - Alembic upgrade/downgrade on a fresh SQLite database
 
 CI runs the same gates on Python 3.11 and 3.12 and builds/smokes the Docker
@@ -516,9 +561,9 @@ app/
   domain/         pure rules, focus mapping, injury taxonomy, fitness
   rules/          compatibility facade for the old rule-engine API
   schemas/        Pydantic request/response models
-  services/       dataset loader, filter, GA, orchestration, identity, plans, workouts, feedback, progress, audit
+  services/       dataset loader, filter, GA, orchestration, identity, plans, workouts, feedback, progress, trainer, audit
 data/             222-row curated exercise dataset
-migrations/       Alembic environment, P0.1 identity, P0.2 plans, P0.3 workouts, P0.4 feedback, P1.1 progress
+migrations/       Alembic environment, P0.1 identity, P0.2 plans, P0.3 workouts, P0.4 feedback, P1.1 progress, P1.2 trainer
 tests/            unit, integration, and API tests
 docs/             algorithm, API, deployment, hosting, auth, audit, and product plans
 scripts/          benchmark, dev-token, and progress-rebuild helpers
@@ -543,6 +588,7 @@ Start with:
 - [`docs/p0-3-workout-execution.md`](docs/p0-3-workout-execution.md) — implemented P0.3 contract
 - [`docs/p0-4-feedback-and-safety.md`](docs/p0-4-feedback-and-safety.md) — implemented P0.4 contract
 - [`docs/p1-1-progress-and-insights.md`](docs/p1-1-progress-and-insights.md) — implemented P1.1 contract
+- [`docs/p1-2-trainer-workspace.md`](docs/p1-2-trainer-workspace.md) — implemented P1.2 contract
 - [`docs/neon-auth.md`](docs/neon-auth.md) — Neon Auth setup and JWT contract
 - [`docs/hosting.md`](docs/hosting.md) — always-on hosting without cold starts
 
@@ -575,9 +621,9 @@ Container/platform settings:
   CPU-bound
 - set `TRUST_PROXY_HEADERS=true`
 - set `CORS_ORIGINS` and `API_KEY` in the dashboard
-- for P0.1–P1.1: set `DATABASE_URL`, run `alembic upgrade head`, then enable
+- for P0.1–P1.2: set `DATABASE_URL`, run `alembic upgrade head`, then enable
   `AUTH_*`/`NEON_AUTH_BASE_URL`, `PLANS_ENABLED`, `WORKOUTS_ENABLED`,
-  `FEEDBACK_ENABLED`, and `PROGRESS_ENABLED` when ready
+  `FEEDBACK_ENABLED`, `PROGRESS_ENABLED`, and `TRAINER_ENABLED` when ready
 
 See [`docs/deployment.md`](docs/deployment.md) and
 [`docs/hosting.md`](docs/hosting.md) for details.

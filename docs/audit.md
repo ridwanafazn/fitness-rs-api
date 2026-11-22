@@ -59,9 +59,10 @@ still intentionally left for future work.
 - CSV path resolved from the project root, not the process CWD.
 - Dead `csv_loader.py`, `dependencies.py`, and empty `app/models` removed.
 - `pyproject.toml` with Ruff, mypy, pytest, and coverage configuration.
-- 227 tests covering rules, injuries, focus, fitness, dataset, GA, API, P0.1
+- 240 tests covering rules, injuries, focus, fitness, dataset, GA, API, P0.1
   auth/profile/consent, P0.2 plan lifecycle, P0.3 workout execution, P0.4
-  feedback/safety, P1.1 progress, and SQLite migration upgrade/downgrade.
+  feedback/safety, P1.1 progress, P1.2 trainer workspace, and SQLite migration
+  upgrade/downgrade.
 - GitHub Actions CI for Python 3.11/3.12 and Docker build.
 - Docker runs as a non-root user and has a health check.
 - Structured JSON logging and `/ready`.
@@ -134,6 +135,18 @@ still intentionally left for future work.
 - Backfill script for one user or all users.
 - Mounted only when `PROGRESS_ENABLED=true`.
 
+### P1.2 trainer workspace
+
+- SQLAlchemy models and Alembic migration for trainer profiles, invitations,
+  client relationships, access grants, plan reviews, and comments.
+- Trainer role gate; trainer role seeded manually.
+- Hashed, expiring, one-time invitation tokens.
+- Client-consented scopes: plans, workouts, feedback, progress.
+- Scope-enforced trainer reads, comments, and plan reviews.
+- Client revocation and cross-trainer isolation.
+- PII-free audit for every client-data access.
+- Mounted only when `TRAINER_ENABLED=true`.
+
 
 ### Dependencies
 
@@ -174,6 +187,8 @@ still intentionally left for future work.
 - Critical alerts are best-effort webhooks, not guaranteed delivery.
 - P1.1 rebuild-on-read is not a long-term analytics pipeline; a scheduled job
   can call the same service later.
+- P1.2 invite delivery is manual until P1.3 notifications; trainer role is
+  seeded manually.
 - Share links are plan-wide, not per-version; no public discovery/social layer.
 - `/metrics` should be protected in a public deployment.
 - A shared Redis store is required for rate limiting across multiple instances.

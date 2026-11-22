@@ -193,6 +193,36 @@ class ProgressValidationError(InvalidInputError):
     message = "Rentang progress tidak valid."
 
 
+class TrainerProfileNotFoundError(NotFoundError):
+    code = "trainer_profile_not_found"
+    message = "Profil trainer tidak ditemukan."
+
+
+class TrainerInvitationNotFoundError(NotFoundError):
+    code = "trainer_invitation_not_found"
+    message = "Undangan trainer tidak ditemukan atau sudah kedaluwarsa."
+
+
+class TrainerInvitationConflictError(ConflictError):
+    code = "trainer_invitation_conflict"
+    message = "Undangan trainer tidak bisa dibuat atau diproses."
+
+
+class TrainerAccessDeniedError(ForbiddenError):
+    code = "trainer_access_denied"
+    message = "Akses ke data client tidak diizinkan."
+
+
+class TrainerClientNotFoundError(NotFoundError):
+    code = "trainer_client_not_found"
+    message = "Client tidak ditemukan pada workspace trainer."
+
+
+class TrainerValidationError(InvalidInputError):
+    code = "trainer_invalid"
+    message = "Data trainer tidak valid."
+
+
 class ProfileValidationError(InvalidInputError):
     code = "validation_error"
     message = "Data profil tidak valid."

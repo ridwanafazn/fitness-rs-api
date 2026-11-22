@@ -228,6 +228,15 @@ Implementation status (P0.1):
 - The frontend login callback and onboarding screens are not built yet.
 - Per-user rate limiting is still future work; the current limiter is IP-based.
 
+Implementation status (P1.2):
+
+- Trainer access is relationship-scoped (`trainer_clients`) and scope-scoped
+  (`access_grants`: plans/workouts/feedback/progress).
+- `trainer` is seeded manually; it is not self-granted through the API.
+- Client consent is explicit on invitation acceptance and revocable anytime.
+- Every trainer client-data read is audited.
+- Cross-trainer access is denied at the repository/service layer.
+
 Token rules:
 
 - Access token short-lived; refresh handled by the provider.

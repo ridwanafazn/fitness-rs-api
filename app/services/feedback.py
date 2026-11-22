@@ -554,6 +554,7 @@ def list_feedback(
     plan_id: Optional[uuid.UUID],
     limit: int,
     cursor: Optional[str],
+    owner_user_id: Optional[uuid.UUID] = None,
 ) -> Tuple[List[Feedback], Optional[str]]:
     limit = min(max(limit, 1), 100)
     stmt = select(Feedback).order_by(
@@ -562,6 +563,8 @@ def list_feedback(
     )
     if plan_id is not None:
         stmt = stmt.where(Feedback.plan_id == plan_id)
+    if owner_user_id is not None:
+        stmt = stmt.where(Feedback.owner_user_id == owner_user_id)
 
     if cursor:
         try:

@@ -44,6 +44,8 @@ services:
         value: "false"
       - key: PROGRESS_ENABLED
         value: "false"
+      - key: TRAINER_ENABLED
+        value: "false"
       - key: RATE_LIMIT_ENABLED
         value: "true"
       - key: RATE_LIMIT

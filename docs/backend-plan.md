@@ -309,8 +309,11 @@ Notes live on the session/exercise/set rows.
 
 # P1.2 — Trainer workspace
 
-- `trainer_profiles`, `trainer_clients`, `invitations`, `access_grants`,
-  `plan_reviews`, `comments`.
+**Status:** implemented behind `TRAINER_ENABLED=false`. See
+`p1-2-trainer-workspace.md` for the contract and tests.
+
+- `trainer_profiles`, `trainer_clients`, `trainer_invitations`, `access_grants`,
+  `plan_reviews`, `trainer_comments`.
 - Invite/accept, client list, plan review, comments.
 - Access only with explicit client consent; revoke anytime.
 - Audit every client-data access.

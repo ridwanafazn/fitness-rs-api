@@ -162,3 +162,11 @@ def require_platform_admin(
     if "platform_admin" not in principal.roles:
         raise ForbiddenError("Akses platform admin diperlukan.")
     return principal
+
+
+def require_trainer(
+    principal: Principal = Depends(get_current_principal),
+) -> Principal:
+    if "trainer" not in principal.roles and "platform_admin" not in principal.roles:
+        raise ForbiddenError("Akses trainer diperlukan.")
+    return principal
