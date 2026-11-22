@@ -116,3 +116,34 @@ def test_cloud_environment_is_inferred(monkeypatch) -> None:
     monkeypatch.setenv("FLY_APP_NAME", "jymz-api")
     settings = Settings(environment="development")
     assert settings.environment == "production"
+
+
+def test_neon_auth_base_url_derives_issuer_audience_and_jwks() -> None:
+    settings = Settings(
+        environment="test",
+        neon_auth_base_url="https://ep-example.aws.neon.tech/neondb/auth",
+        auth_enabled=True,
+        auth_profiles_enabled=True,
+    )
+    assert settings.auth_issuer == "https://ep-example.aws.neon.tech"
+    assert settings.auth_audience == "https://ep-example.aws.neon.tech"
+    assert (
+        settings.auth_jwks_url
+        == "https://ep-example.aws.neon.tech/neondb/auth/.well-known/jwks.json"
+    )
+    assert "EdDSA" in settings.auth_algorithm_list
+
+
+def test_eddsa_algorithm_is_case_canonicalised() -> None:
+    settings = Settings(auth_algorithms="eddsa,rs256")
+    assert settings.auth_algorithm_list == ["EdDSA", "RS256"]
+
+
+def test_invalid_neon_auth_base_url_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        Settings(environment="test", neon_auth_base_url="not-a-url")
+
+
+def test_plans_require_auth_profiles() -> None:
+    with pytest.raises(ValidationError):
+        Settings(environment="test", plans_enabled=True)

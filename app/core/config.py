@@ -11,6 +11,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
+from urllib.parse import urlparse
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -62,9 +63,12 @@ class Settings(BaseSettings):
     auth_issuer: Optional[str] = None
     auth_audience: Optional[str] = None
     auth_jwks_url: Optional[str] = None
-    auth_algorithms: str = "RS256,ES256"
+    auth_algorithms: str = "EdDSA,RS256,ES256"
     auth_jwks_cache_seconds: int = Field(default=3600, ge=60, le=86_400)
     auth_leeway_seconds: int = Field(default=30, ge=0, le=300)
+
+    # Neon Auth convenience: derives issuer/audience (origin) and JWKS URL.
+    neon_auth_base_url: Optional[str] = None
 
     # Test/local-only symmetric signing. Never allowed in production.
     auth_dev_mode: bool = False
@@ -72,6 +76,9 @@ class Settings(BaseSettings):
 
     consent_policy_version: str = "2026-01"
     account_deletion_grace_days: int = Field(default=30, ge=1, le=365)
+
+    # P0.2 plan lifecycle. Requires P0.1 auth/profile endpoints and a database.
+    plans_enabled: bool = False
 
     # Rate limiting.  memory:// is fine for a single instance; use a Redis URI
     # when running more than one worker/instance.
@@ -133,13 +140,30 @@ class Settings(BaseSettings):
             "EdDSA",
             "HS256",
         }
-        items = [item.strip().upper() for item in value.split(",") if item.strip()]
+        canonical = {"EDDSA": "EdDSA"}
+        items = [
+            canonical.get(item.strip().upper(), item.strip().upper())
+            for item in value.split(",")
+            if item.strip()
+        ]
         if not items:
             raise ValueError("AUTH_ALGORITHMS tidak boleh kosong")
         unknown = sorted(set(items) - allowed)
         if unknown:
             raise ValueError(f"AUTH_ALGORITHMS tidak didukung: {', '.join(unknown)}")
         return ",".join(dict.fromkeys(items))
+
+    @field_validator("neon_auth_base_url", mode="after")
+    @classmethod
+    def _normalise_neon_auth_base_url(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        base = value.strip().rstrip("/")
+        if not base:
+            return None
+        if not base.startswith(("https://", "http://")):
+            raise ValueError("NEON_AUTH_BASE_URL harus URL HTTP(S)")
+        return base
 
     @field_validator("log_level")
     @classmethod
@@ -187,6 +211,20 @@ class Settings(BaseSettings):
         if self.db_auto_create and self.is_production:
             raise ValueError("DB_AUTO_CREATE tidak boleh aktif di production")
 
+        if self.neon_auth_base_url:
+            parsed = urlparse(self.neon_auth_base_url)
+            if not parsed.scheme or not parsed.netloc:
+                raise ValueError("NEON_AUTH_BASE_URL tidak valid")
+            origin = f"{parsed.scheme}://{parsed.netloc}"
+            if not self.auth_issuer:
+                self.auth_issuer = origin
+            if not self.auth_audience:
+                self.auth_audience = origin
+            if not self.auth_jwks_url:
+                self.auth_jwks_url = f"{self.neon_auth_base_url}/.well-known/jwks.json"
+            if "EdDSA" not in self.auth_algorithm_list:
+                self.auth_algorithms = f"{self.auth_algorithms},EdDSA"
+
         if self.auth_dev_mode:
             if self.is_production:
                 raise ValueError("AUTH_DEV_MODE tidak boleh aktif di production")
@@ -218,6 +256,12 @@ class Settings(BaseSettings):
                 raise ValueError("AUTH_PROFILES_ENABLED membutuhkan AUTH_ENABLED=true")
             if self.is_production and not self.database_url:
                 raise ValueError("DATABASE_URL wajib di production saat profil aktif")
+
+        if self.plans_enabled:
+            if not self.auth_profiles_enabled:
+                raise ValueError("PLANS_ENABLED membutuhkan AUTH_PROFILES_ENABLED=true")
+            if self.is_production and not self.database_url:
+                raise ValueError("DATABASE_URL wajib di production saat plan aktif")
 
         return self
 

@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -267,3 +269,172 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )
+
+class Plan(Base):
+    __tablename__ = "plans"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('active', 'archived', 'deleted')",
+            name="ck_plans_status",
+        ),
+        Index("ix_plans_owner_created", "owner_user_id", "created_at"),
+        Index(
+            "uq_plans_owner_idempotency",
+            "owner_user_id",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text("idempotency_key IS NOT NULL"),
+            sqlite_where=text("idempotency_key IS NOT NULL"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="active", nullable=False)
+    current_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    input_snapshot: Mapped[Dict[str, Any]] = mapped_column(json_type(), nullable=False)
+    seed: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    dataset_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    algorithm_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    split_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    day_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    bmi: Mapped[Optional[float]] = mapped_column(Numeric(5, 2))
+    bmi_category: Mapped[Optional[str]] = mapped_column(String(32))
+    idempotency_key: Mapped[Optional[str]] = mapped_column(String(128))
+    idempotency_hash: Mapped[Optional[str]] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    versions: Mapped[List[PlanVersion]] = relationship(
+        back_populates="plan",
+        cascade="all, delete-orphan",
+    )
+    shares: Mapped[List[PlanShare]] = relationship(
+        back_populates="plan",
+        cascade="all, delete-orphan",
+    )
+
+
+class PlanVersion(Base):
+    __tablename__ = "plan_versions"
+    __table_args__ = (
+        UniqueConstraint("plan_id", "version", name="uq_plan_versions_plan_version"),
+        Index("ix_plan_versions_plan_id", "plan_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("plans.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    split_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    schedule: Mapped[Dict[str, str]] = mapped_column(json_type(), nullable=False)
+    warnings: Mapped[List[str]] = mapped_column(json_type(), default=list, nullable=False)
+    day_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="SET NULL"),
+    )
+
+    plan: Mapped[Plan] = relationship(back_populates="versions")
+    days: Mapped[List[PlanDay]] = relationship(
+        back_populates="version",
+        cascade="all, delete-orphan",
+        order_by="PlanDay.day_number",
+    )
+
+
+class PlanDay(Base):
+    __tablename__ = "plan_days"
+    __table_args__ = (
+        UniqueConstraint("plan_version_id", "day_number", name="uq_plan_days_version_day"),
+        CheckConstraint("day_number > 0", name="ck_plan_days_day_number"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    plan_version_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("plan_versions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    day_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    focus: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+    version: Mapped[PlanVersion] = relationship(back_populates="days")
+    exercises: Mapped[List[PlanExercise]] = relationship(
+        back_populates="day",
+        cascade="all, delete-orphan",
+        order_by="PlanExercise.position",
+    )
+
+
+class PlanExercise(Base):
+    __tablename__ = "plan_exercises"
+    __table_args__ = (
+        UniqueConstraint("plan_day_id", "position", name="uq_plan_exercises_day_position"),
+        CheckConstraint("position >= 0", name="ck_plan_exercises_position"),
+        Index("ix_plan_exercises_day_id", "plan_day_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    plan_day_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("plan_days.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    exercise_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    exercise_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    body_part: Mapped[str] = mapped_column(String(32), nullable=False)
+    equipment: Mapped[List[str]] = mapped_column(json_type(), nullable=False)
+    primary_muscle: Mapped[List[str]] = mapped_column(json_type(), nullable=False)
+    secondary_muscle: Mapped[List[str]] = mapped_column(json_type(), default=list, nullable=False)
+    image_url: Mapped[Optional[str]] = mapped_column(Text)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+    day: Mapped[PlanDay] = relationship(back_populates="exercises")
+
+
+class PlanShare(Base):
+    __tablename__ = "plan_shares"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_plan_shares_token_hash"),
+        Index("ix_plan_shares_plan_expires", "plan_id", "expires_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("plans.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+    plan: Mapped[Plan] = relationship(back_populates="shares")

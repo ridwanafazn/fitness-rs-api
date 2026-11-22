@@ -29,15 +29,23 @@ P0.1 database and auth:
 - `DB_AUTO_CREATE=false`
 - `AUTH_ENABLED=false` and `AUTH_PROFILES_ENABLED=false` until the OIDC provider
   and frontend onboarding are ready
-- When enabling:
+- When enabling with Neon Auth:
   - `AUTH_ENABLED=true`
   - `AUTH_PROFILES_ENABLED=true`
-  - `AUTH_ISSUER=https://...`
-  - `AUTH_AUDIENCE=...`
-  - `AUTH_JWKS_URL=https://.../.well-known/jwks.json`
-  - `AUTH_ALGORITHMS=RS256,ES256`
+  - `NEON_AUTH_BASE_URL=https://<host>/<db>/auth`
+  - `AUTH_ALGORITHMS=EdDSA`
+  - explicit `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_JWKS_URL` are derived from
+    `NEON_AUTH_BASE_URL`; override only if needed
 - `CONSENT_POLICY_VERSION=2026-01`
 - `ACCOUNT_DELETION_GRACE_DAYS=30`
+
+P0.2 plans:
+
+- `PLANS_ENABLED=true` only after bearer auth and frontend
+  `Idempotency-Key` handling are ready.
+- `PLANS_ENABLED` requires `AUTH_PROFILES_ENABLED=true` and a database.
+
+See [`neon-auth.md`](neon-auth.md) for the Neon Auth token contract.
 
 Run the migration before shifting traffic:
 

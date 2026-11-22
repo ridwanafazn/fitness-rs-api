@@ -207,6 +207,13 @@ Common codes:
 | `forbidden` | 403 | Authenticated but not allowed |
 | `auth_not_configured` | 503 | OIDC/auth settings are missing |
 | `database_not_configured` | 503 | `DATABASE_URL` is missing |
+| `plan_not_found` | 404 | Plan missing or not owned by caller |
+| `share_not_found` | 404 | Share missing, revoked, or expired |
+| `plan_revision_conflict` | 409 | Stale plan revision |
+| `idempotency_conflict` | 409 | Key reused with a different body |
+| `exercise_locked` | 409 | Swap attempted on a locked exercise |
+| `plan_invalid` | 422 | Invalid/safety-breaking plan |
+| `precondition_required` | 428 | Missing `expected_revision`/`If-Match` |
 | `internal_error` | 500 | Unexpected server error |
 | `service_unavailable` | 503 | Computation timeout or auth provider unavailable |
 
@@ -230,9 +237,11 @@ All settings are environment variables (see `.env.example`):
 | `AUTH_ISSUER` | empty | OIDC issuer |
 | `AUTH_AUDIENCE` | empty | OIDC audience |
 | `AUTH_JWKS_URL` | empty | HTTPS JWKS endpoint |
-| `AUTH_ALGORITHMS` | `RS256,ES256` | Allowed JWT algorithms |
+| `AUTH_ALGORITHMS` | `EdDSA,RS256,ES256` | Allowed JWT algorithms |
+| `NEON_AUTH_BASE_URL` | empty | Neon Auth branch URL; derives issuer/audience/JWKS |
 | `AUTH_DEV_MODE` | `false` | HS256 local/test only; rejected in production |
 | `AUTH_DEV_SECRET` | empty | Dev-only signing secret, min 32 chars |
+| `PLANS_ENABLED` | `false` | Mount P0.2 plan lifecycle endpoints |
 | `CONSENT_POLICY_VERSION` | `2026-01` | Consent policy version |
 | `ACCOUNT_DELETION_GRACE_DAYS` | `30` | Hard-delete window (job future work) |
 | `RATE_LIMIT_ENABLED` | `true` | Enable the rate-limit middleware |
@@ -260,8 +269,10 @@ Production checklist:
 5. Use Redis for `RATE_LIMIT_STORAGE_URI` if you run more than one instance.
 6. Keep `/ready` as the platform health check.
 7. For P0.1, set `DATABASE_URL`, run `alembic upgrade head`, and keep
-   `AUTH_PROFILES_ENABLED=false` until the OIDC provider and frontend are ready.
-8. Use an always-on host without cold starts; see [`docs/hosting.md`](docs/hosting.md).
+   `AUTH_PROFILES_ENABLED=false` until Neon Auth and the frontend are ready.
+8. For P0.2, set `PLANS_ENABLED=true` only after bearer auth and the frontend
+   `Idempotency-Key` handling are ready.
+9. Use an always-on host without cold starts; see [`docs/hosting.md`](docs/hosting.md).
 
 ---
 
@@ -287,6 +298,8 @@ Mounted only when `AUTH_PROFILES_ENABLED=true`:
 Auth is provider-agnostic OIDC: the backend validates `Authorization: Bearer`
 against `AUTH_ISSUER`, `AUTH_AUDIENCE`, and `AUTH_JWKS_URL`. Roles are loaded from
 the database, never trusted from the token. There is no password storage.
+Neon Auth is the selected provider; `NEON_AUTH_BASE_URL` derives the three OIDC
+settings. See [`docs/neon-auth.md`](docs/neon-auth.md).
 
 Local development:
 
@@ -321,7 +334,40 @@ DATABASE_URL="postgresql://..." alembic upgrade head
   exists.
 
 See [`docs/p0-1-identity-and-profiles.md`](docs/p0-1-identity-and-profiles.md)
-for the full contract and [`docs/hosting.md`](docs/hosting.md) for deployment.
+for the full contract and [`docs/neon-auth.md`](docs/neon-auth.md) for Neon Auth
+setup.
+
+---
+
+## Plans (P0.2)
+
+Mounted only when `PLANS_ENABLED=true`. Plans are owned by the signed-in user,
+versioned, and exportable.
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/plans` | Create from recommendation input/result |
+| POST | `/api/v1/plans/import` | Import a guest/recommendation result |
+| GET | `/api/v1/plans` | List own plans (cursor) |
+| GET | `/api/v1/plans/{id}` | Plan detail |
+| GET | `/api/v1/plans/{id}/versions` | Version history |
+| PATCH | `/api/v1/plans/{id}` | Lock/swap/regenerate day |
+| DELETE | `/api/v1/plans/{id}` | Soft delete |
+| POST/DELETE | `/api/v1/plans/{id}/share` | Create/revoke read-only share |
+| GET | `/api/v1/plans/{id}/export.pdf` | PDF export |
+| GET | `/api/v1/plans/{id}/export.ics` | Calendar export |
+| GET | `/api/v1/shared/{token}` | Public read-only plan |
+
+Rules:
+
+- `Idempotency-Key` is required on create/import.
+- `PATCH` requires `expected_revision` or `If-Match`.
+- Every edit creates an immutable version; locked exercises survive regenerate.
+- Swap/regenerate never bypass injury constraints.
+- Share tokens are hashed, expiring, and exclude owner PII/injury input.
+- PDF and ICS export are generated in-process.
+
+See [`docs/p0-2-plan-lifecycle.md`](docs/p0-2-plan-lifecycle.md).
 
 ---
 
@@ -349,6 +395,9 @@ The test suite covers:
 - P0.1 profile/consent: onboarding idempotency, injury consent gate, unknown
   injury/equipment rejection, consent revoke deletes injuries, export isolation,
   deletion request, PII-free audit metadata
+- P0.2 plans: idempotency, import safety, owner isolation, immutable versions,
+  lock/swap/regenerate, revision conflicts, share hashing/expiry/revoke,
+  PDF/ICS, pagination
 - Alembic upgrade/downgrade on a fresh SQLite database
 
 CI runs the same gates on Python 3.11 and 3.12 and builds/smokes the Docker
@@ -367,12 +416,12 @@ app/
   domain/         pure rules, focus mapping, injury taxonomy, fitness
   rules/          compatibility facade for the old rule-engine API
   schemas/        Pydantic request/response models
-  services/       dataset loader, filter, GA, orchestration, identity, audit
+  services/       dataset loader, filter, GA, orchestration, identity, plans, audit
 data/             222-row curated exercise dataset
-migrations/       Alembic environment and P0.1 migration
+migrations/       Alembic environment, P0.1 identity, P0.2 plans
 tests/            unit, integration, and API tests
-docs/             algorithm, API, deployment, hosting, audit, and product plans
-scripts/          benchmark helper
+docs/             algorithm, API, deployment, hosting, auth, audit, and product plans
+scripts/          benchmark helper and dev-token helper
 ```
 
 ---
@@ -390,6 +439,8 @@ Start with:
 - [`docs/roles-and-access.md`](docs/roles-and-access.md) — roles, RBAC, consent
 - [`docs/data-model.md`](docs/data-model.md) — tables and invariants
 - [`docs/p0-1-identity-and-profiles.md`](docs/p0-1-identity-and-profiles.md) — implemented P0.1 contract
+- [`docs/p0-2-plan-lifecycle.md`](docs/p0-2-plan-lifecycle.md) — implemented P0.2 contract
+- [`docs/neon-auth.md`](docs/neon-auth.md) — Neon Auth setup and JWT contract
 - [`docs/hosting.md`](docs/hosting.md) — always-on hosting without cold starts
 
 Frontend: [`ridwanafazn/city-master-v2`](https://github.com/ridwanafazn/city-master-v2), live at [`jymz.pages.dev`](https://jymz.pages.dev/).
@@ -421,7 +472,8 @@ Container/platform settings:
   CPU-bound
 - set `TRUST_PROXY_HEADERS=true`
 - set `CORS_ORIGINS` and `API_KEY` in the dashboard
-- for P0.1: set `DATABASE_URL` and run `alembic upgrade head` before traffic
+- for P0.1/P0.2: set `DATABASE_URL`, run `alembic upgrade head`, then enable
+  `AUTH_*`/`NEON_AUTH_BASE_URL` and `PLANS_ENABLED` when ready
 
 See [`docs/deployment.md`](docs/deployment.md) and
 [`docs/hosting.md`](docs/hosting.md) for details.

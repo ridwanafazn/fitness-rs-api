@@ -55,9 +55,12 @@ vendor.
 
 Recommended implementation:
 
-- If the database is on Neon, use **Neon Auth**.
+- If the database is on Neon, use **Neon Auth** (selected).
 - Otherwise use **Clerk** or another OIDC provider.
 - Backend validates JWT via JWKS; roles are loaded from our database.
+
+Neon Auth setup, claims, and frontend token retrieval are in
+[`neon-auth.md`](neon-auth.md).
 
 Configuration:
 
@@ -67,8 +70,18 @@ AUTH_PROFILES_ENABLED=true
 AUTH_ISSUER=https://...
 AUTH_AUDIENCE=...
 AUTH_JWKS_URL=https://.../.well-known/jwks.json
-AUTH_ALGORITHMS=RS256,ES256
+AUTH_ALGORITHMS=EdDSA,RS256,ES256
 ```
+
+With Neon Auth, the issuer/audience/JWKS values are derived from the branch URL:
+
+```text
+NEON_AUTH_BASE_URL=https://<host>/<db>/auth
+AUTH_ENABLED=true
+AUTH_PROFILES_ENABLED=true
+```
+
+See [`neon-auth.md`](neon-auth.md).
 
 Local/test only (never in production):
 

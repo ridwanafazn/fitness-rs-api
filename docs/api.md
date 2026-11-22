@@ -81,6 +81,36 @@ Mounted only when `AUTH_PROFILES_ENABLED=true`. Full contract:
 | GET | `/api/v1/me/export` | Export own data as JSON |
 | DELETE | `/api/v1/me` | Request account deletion (`202`) |
 
+## P0.2 plan endpoints
+
+Mounted only when `PLANS_ENABLED=true`. Full contract:
+[`p0-2-plan-lifecycle.md`](p0-2-plan-lifecycle.md).
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/plans` | Create from recommendation input/result |
+| POST | `/api/v1/plans/import` | Import a guest/recommendation result |
+| GET | `/api/v1/plans` | List own plans (`limit`, `cursor`) |
+| GET | `/api/v1/plans/{id}` | Plan detail |
+| GET | `/api/v1/plans/{id}/versions` | Version history |
+| PATCH | `/api/v1/plans/{id}` | Lock/swap/regenerate day |
+| DELETE | `/api/v1/plans/{id}` | Soft delete (`204`) |
+| POST | `/api/v1/plans/{id}/share` | Create read-only share link |
+| DELETE | `/api/v1/plans/{id}/share` | Revoke shares (`204`) |
+| GET | `/api/v1/plans/{id}/export.pdf` | PDF export |
+| GET | `/api/v1/plans/{id}/export.ics` | Calendar export |
+| GET | `/api/v1/shared/{token}` | Public read-only plan |
+
+`POST /plans` and `/plans/import` require:
+
+```http
+Idempotency-Key: <1-128 characters>
+Authorization: Bearer <token>
+```
+
+`PATCH /plans/{id}` requires `expected_revision` in the body or
+`If-Match: "<revision>"`.
+
 ## Response envelope
 
 Success uses the endpoint-specific schema. Every response includes:
@@ -112,13 +142,16 @@ error handlers; new clients should read `error.code` and `error.message`.
 
 | Code | Meaning |
 |---:|---|
-| 201 | Recommendation produced |
+| 201 | Recommendation or plan created |
 | 202 | Account deletion request accepted |
+| 204 | Delete/revoke succeeded |
 | 401 | API key or bearer token missing/invalid |
 | 403 | Authenticated but not allowed, or account deletion pending |
-| 409 | Consent required or update conflict |
+| 404 | Plan/share not found |
+| 409 | Consent required, revision conflict, locked exercise, or idempotency conflict |
 | 413 | Request body too large |
 | 422 | Validation or safety constraint failed |
+| 428 | `expected_revision`/`If-Match` required |
 | 429 | Rate limit exceeded |
 | 500 | Unexpected error |
 | 503 | Timeout, dataset not ready, database/auth not configured |

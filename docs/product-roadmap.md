@@ -27,7 +27,7 @@ Total: **10 phases**.
 | Phase | Name | What is finished | Release | Status |
 |---|---|---|---|---|
 | P0.1 | Identity, profile, consent | Auth, profile, equipment, injuries, consent, delete/export | R1 | Backend done; FE pending |
-| P0.2 | Plan lifecycle | Save, history, versions, swap/lock, share, PDF/ICS | R1 | Planned |
+| P0.2 | Plan lifecycle | Save, history, versions, swap/lock, share, PDF/ICS | R1 | Backend done; FE pending |
 | P0.3 | Workout execution | Start/finish workout, set logs, notes, offline sync | R2 | Planned |
 | P0.4 | Feedback & safety | Ratings, difficulty, pain, unsafe reports, admin triage | R1 | Planned |
 

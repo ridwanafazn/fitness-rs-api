@@ -40,7 +40,7 @@ class TokenClaims:
 
 
 def _email_is_verified(payload: Dict[str, Any]) -> bool:
-    claim = payload.get("email_verified")
+    claim = payload.get("email_verified", payload.get("emailVerified"))
     if claim is True:
         return True
     return isinstance(claim, str) and claim.strip().lower() == "true"

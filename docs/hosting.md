@@ -51,6 +51,10 @@ kembali ke Render free.
 rendah, dan koneksi bisa dipool. Jangan taruh file PDF/gambar di Postgres;
 gunakan object storage (Cloudflare R2 free 10 GB) saat P0.2.
 
+P0.2 saat ini membuat PDF/ICS secara synchronous di proses API. Itu cukup untuk
+plan kecil; pindahkan ke worker + object storage saat volume atau ukuran plan
+meningkat (P2.3).
+
 ---
 
 ## Kenapa Render free tidak cocok

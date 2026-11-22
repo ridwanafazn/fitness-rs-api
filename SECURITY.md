@@ -48,6 +48,11 @@ maintainer privately (GitHub: `@ridwanafazn`) with:
 - Audit metadata must not contain injury terms, notes, email, or tokens.
 - `DELETE /me` records a deletion request and blocks authentication; the
   hard-delete retention job is future work.
+- P0.2 plans store the recommendation input snapshot (which can include injury
+  terms), plan versions, and share tokens. Plan access is owner-scoped.
+- Share tokens are stored only as SHA-256 hashes and expire; public share
+  responses exclude owner identity and injury input.
+- PDF/ICS exports are owner-only and audited.
 - Do not add new categories of health data without reviewing consent, retention,
   and access controls.
 

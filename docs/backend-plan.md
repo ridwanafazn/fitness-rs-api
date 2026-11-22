@@ -132,6 +132,9 @@ health data. Existing public recommendation still works without login.
 
 # P0.2 — Plan lifecycle
 
+**Status:** implemented behind `PLANS_ENABLED=false`. See
+`p0-2-plan-lifecycle.md` for the contract and tests.
+
 **Goal:** plans become durable artifacts instead of transient responses.
 
 ### Scope
@@ -146,22 +149,23 @@ health data. Existing public recommendation still works without login.
 
 ### Data
 
-`plans`, `plan_days`, `plan_exercises`, `plan_versions`, `plan_locks`,
-`plan_shares`.
+`plans`, `plan_versions`, `plan_days`, `plan_exercises`, `plan_shares`.
+`locked` is stored on `plan_exercises`; no separate lock table.
 
 ### Endpoints
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/v1/plans` | create from recommendation result/input |
+| POST | `/api/v1/plans` | create from recommendation input/result |
 | POST | `/api/v1/plans/import` | import a local guest plan after signup |
 | GET | `/api/v1/plans` | list plans (cursor pagination) |
 | GET | `/api/v1/plans/{id}` | plan detail |
+| GET | `/api/v1/plans/{id}/versions` | version history |
 | PATCH | `/api/v1/plans/{id}` | lock/swap/regenerate day |
 | DELETE | `/api/v1/plans/{id}` | soft delete |
 | POST | `/api/v1/plans/{id}/share` | create read-only token |
 | DELETE | `/api/v1/plans/{id}/share` | revoke share |
-| GET | `/api/v1/plans/{id}/export.pdf` | signed URL or stream |
+| GET | `/api/v1/plans/{id}/export.pdf` | PDF stream |
 | GET | `/api/v1/plans/{id}/export.ics` | calendar feed |
 | GET | `/api/v1/shared/{token}` | public read-only plan |
 
@@ -171,8 +175,9 @@ health data. Existing public recommendation still works without login.
 - Plan version is immutable once created; edits create a new version.
 - Swap must respect injury hard constraints and focus; never bypass safety.
 - `Idempotency-Key` is required for create/import.
-- `PATCH` uses `If-Match` or `version` to avoid lost updates.
-- PDF/ICS generation can be synchronous at first; move to worker if >500 ms.
+- `PATCH` uses `expected_revision` or `If-Match` to avoid lost updates.
+- PDF/ICS generation is synchronous in P0.2; move to a worker if >500 ms.
+- New plan endpoints are mounted only when `PLANS_ENABLED=true`.
 
 ### Definition of done
 

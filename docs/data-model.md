@@ -181,37 +181,44 @@ enum. Empty list means “all equipment allowed”, not “none”.
 
 ```text
 plans
-  id, owner_user_id, title, status, current_version,
+  id, owner_user_id, title, status, current_version, revision,
   input_snapshot jsonb, seed, dataset_version, algorithm_version,
+  split_type, day_count, bmi, bmi_category,
+  idempotency_key, idempotency_hash,
   created_at, updated_at, deleted_at
 
 plan_versions
-  id, plan_id, version, split_type, schedule jsonb,
-  warnings jsonb, created_at, created_by
+  id, plan_id, version, split_type, schedule jsonb, warnings jsonb,
+  day_count, created_at, created_by
 
 plan_days
-  id, plan_version_id, day_number, focus
+  id, plan_version_id, day_number, focus, created_at
 
 plan_exercises
   id, plan_day_id, exercise_id, exercise_name, body_part,
   equipment jsonb, primary_muscle jsonb, secondary_muscle jsonb,
-  image_url, position, locked
+  image_url, position, locked, created_at
 
 plan_shares
   id, plan_id, token_hash, expires_at, revoked_at, created_at
-
-plan_locks
-  id, plan_id, plan_exercise_id, created_at
 ```
 
 Rules:
 
-- `plan_versions` are immutable snapshots.
+- `plan_versions`/`plan_days`/`plan_exercises` are immutable snapshots.
 - `plans.current_version` points to the latest version.
-- A share token is random, hashed, expiring, and read-only.
+- `plans.revision` is the optimistic-concurrency counter; every edit increments
+  it.
+- `locked` is stored on the exercise snapshot. There is no separate
+  `plan_locks` table in P0.2.
+- A share token is random, hashed (SHA-256), expiring, and read-only.
 - `plan_exercises` denormalizes exercise display data so old plans remain
   readable if the dataset changes.
-- Swap creates a new version; lock is stored on the exercise.
+- Swap/regenerate creates a new version; lock is copied into the new version.
+- `plans.idempotency_key` is unique per owner with a partial index; delete
+  clears it so the key can be reused.
+- Soft-deleted plans are excluded from list/detail; versions remain for
+  audit/recovery.
 
 ---
 
@@ -313,9 +320,10 @@ Rules:
 11. P1/P2 tables
 
 Steps 1–7 are implemented in `migrations/versions/0001_identity_profiles.py`.
-Each migration must be reversible where practical, and tested against a fresh
-database. The P0.1 migration is tested on SQLite (upgrade + downgrade); the
-Postgres runbook is in `hosting.md`.
+The P0.2 plan tables are implemented in
+`migrations/versions/0002_plans.py`. Each migration must be reversible where
+practical, and tested against a fresh database. Both migrations are tested on
+SQLite (upgrade + downgrade); the Postgres runbook is in `hosting.md`.
 
 ---
 

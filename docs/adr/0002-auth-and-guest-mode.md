@@ -12,7 +12,8 @@ frontend should keep working for visitors who have not signed in.
 
 ## Decision
 
-1. Use an **OIDC-compatible provider** for authentication.
+1. Use an **OIDC-compatible provider** for authentication. Neon Auth is the
+   selected provider; the backend remains provider-agnostic.
 2. Keep guest mode **local-first**: no server-side guest PII. The public
    recommendation endpoint remains available without login.
 3. Validate bearer tokens in the backend with provider JWKS.

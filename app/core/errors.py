@@ -86,6 +86,52 @@ class InvalidInputError(AppError):
     message = "Input tidak valid."
 
 
+class PlanNotFoundError(NotFoundError):
+    code = "plan_not_found"
+    message = "Plan tidak ditemukan."
+
+
+class ShareNotFoundError(NotFoundError):
+    code = "share_not_found"
+    message = "Share link tidak ditemukan atau sudah kedaluwarsa."
+
+
+class PlanRevisionConflictError(ConflictError):
+    code = "plan_revision_conflict"
+    message = "Plan sudah berubah. Muat ulang plan sebelum mengedit."
+
+
+class PlanDatasetMismatchError(ConflictError):
+    code = "plan_dataset_mismatch"
+    message = "Plan dibuat dengan dataset yang berbeda. Buat ulang plan."
+
+
+class PlanValidationError(InvalidInputError):
+    code = "plan_invalid"
+    message = "Data plan tidak valid."
+
+
+class ExerciseLockedError(ConflictError):
+    code = "exercise_locked"
+    message = "Exercise terkunci. Buka lock sebelum mengganti."
+
+
+class IdempotencyConflictError(ConflictError):
+    code = "idempotency_conflict"
+    message = "Idempotency-Key sudah dipakai untuk request yang berbeda."
+
+
+class PreconditionRequiredError(AppError):
+    code = "precondition_required"
+    status_code = status.HTTP_428_PRECONDITION_REQUIRED
+    message = "expected_revision atau If-Match wajib dikirim."
+
+
+class InvalidCursorError(InvalidInputError):
+    code = "invalid_cursor"
+    message = "Cursor pagination tidak valid."
+
+
 class ProfileValidationError(InvalidInputError):
     code = "validation_error"
     message = "Data profil tidak valid."

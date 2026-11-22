@@ -59,8 +59,9 @@ still intentionally left for future work.
 - CSV path resolved from the project root, not the process CWD.
 - Dead `csv_loader.py`, `dependencies.py`, and empty `app/models` removed.
 - `pyproject.toml` with Ruff, mypy, pytest, and coverage configuration.
-- 171 tests covering rules, injuries, focus, fitness, dataset, GA, API, P0.1
-  auth/profile/consent, and SQLite migration upgrade/downgrade.
+- 192 tests covering rules, injuries, focus, fitness, dataset, GA, API, P0.1
+  auth/profile/consent, P0.2 plan lifecycle, and SQLite migration
+  upgrade/downgrade.
 - GitHub Actions CI for Python 3.11/3.12 and Docker build.
 - Docker runs as a non-root user and has a health check.
 - Structured JSON logging and `/ready`.
@@ -78,12 +79,30 @@ still intentionally left for future work.
 - PII-free audit metadata and explicit data export.
 - P0.1 is feature-flagged so the existing recommendation deployment is unchanged.
 
+### P0.2 plan lifecycle
+
+- SQLAlchemy models and Alembic migration for `plans`, `plan_versions`,
+  `plan_days`, `plan_exercises`, and `plan_shares`.
+- Create from recommendation input or save/import an existing recommendation
+  result; `Idempotency-Key` replay and conflict detection.
+- Immutable version snapshots; lock, swap, and regenerate-day create a new
+  version; locked exercises survive regeneration.
+- Optimistic concurrency with `expected_revision` or `If-Match`.
+- Owner-scoped list/detail/delete, cursor pagination, version history.
+- Hashed read-only share tokens with expiry/revocation and a public endpoint
+  that excludes owner PII and injury input.
+- PDF (ReportLab) and ICS export, audited.
+- Import safety: dataset match, focus match, no injured body part, expected
+  exercise count, no duplicates.
+- Mounted only when `PLANS_ENABLED=true`.
+
 
 ### Dependencies
 
 - Upgraded to the current FastAPI/Starlette/AnyIO/Pydantic generation.
 - Upgraded PyGAD to 3.9, whose plotting/matplotlib dependency is optional; the
-  runtime no longer installs Pillow/fonttools/matplotlib.
+  runtime does not need matplotlib for the recommendation path.
+- ReportLab (and Pillow, its image dependency) is included for P0.2 PDF export.
 - Removed `slowapi` in favour of the `limits` moving-window middleware, which
   is compatible with the current Starlette generation.
 - `pip-audit -r requirements.txt` reports no known vulnerabilities.
@@ -102,12 +121,17 @@ still intentionally left for future work.
 - Dataset is 222 exercises; hamstrings and neck are underrepresented.
 - Fitness weights are inherited from the thesis and are not clinically tuned.
 - No multi-expert validation, user study, or ablation in this engineering pass.
-- P0.1 is implemented, but no real OIDC provider is configured in the repo and
-  the frontend onboarding/login screens are not built yet.
+- P0.1/P0.2 are implemented, but no live Neon Auth branch or production
+  database is configured in the repository; the frontend login/onboarding/plan
+  screens are not built yet.
 - Account deletion currently records a request; the hard-delete retention job
   is future work.
 - Rate limiting is IP-based globally; per-user limits are future work.
-- Plans, workout logs, and feedback are not implemented yet (P0.2–P0.4).
+- P0.2 PDF/ICS export is synchronous in-process; move to a worker/object storage
+  if it grows.
+- Trainer access, workout logs, and feedback are not implemented yet
+  (P1.2/P0.3/P0.4).
+- Share links are plan-wide, not per-version; no public discovery/social layer.
 - `/metrics` should be protected in a public deployment.
 - A shared Redis store is required for rate limiting across multiple instances.
 - The in-memory `limits` store is per-process; use Redis for multiple instances.

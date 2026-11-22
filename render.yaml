@@ -36,6 +36,8 @@ services:
         value: "false"
       - key: AUTH_PROFILES_ENABLED
         value: "false"
+      - key: PLANS_ENABLED
+        value: "false"
       - key: RATE_LIMIT_ENABLED
         value: "true"
       - key: RATE_LIMIT

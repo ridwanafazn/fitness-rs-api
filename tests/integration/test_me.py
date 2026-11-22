@@ -262,6 +262,21 @@ def test_unverified_email_is_not_stored(auth_client, token_factory):
 
 
 @pytest.mark.integration
+def test_neon_auth_camel_case_email_verified_claim_is_supported(auth_client, token_factory):
+    token = token_factory(
+        sub="neon-user",
+        email_verified=None,
+        emailVerified=True,
+    )
+    response = auth_client.get(
+        "/api/v1/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["user"]["email"] == "neon-user@example.com"
+
+
+@pytest.mark.integration
 def test_onboarding_roundtrip(auth_client, auth_headers, db_session):
     response = auth_client.post(
         "/api/v1/me/onboarding",

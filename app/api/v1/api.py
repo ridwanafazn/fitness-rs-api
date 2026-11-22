@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api import me, recommendation
+from app.api import me, plans, recommendation
 from app.core.config import Settings
 
 
@@ -27,6 +27,18 @@ def build_api_router(settings: Settings) -> APIRouter:
             me.router,
             prefix="/me",
             tags=["me"],
+        )
+
+    if settings.plans_enabled:
+        router.include_router(
+            plans.router,
+            prefix="/plans",
+            tags=["plans"],
+        )
+        router.include_router(
+            plans.public_router,
+            prefix="/shared",
+            tags=["shared"],
         )
 
     return router
