@@ -282,9 +282,27 @@ app/
   services/       dataset loader, filter, GA, orchestration
 data/             222-row curated exercise dataset
 tests/            unit, integration, and API tests
-docs/             algorithm, API, deployment, and audit notes
+docs/             algorithm, API, deployment, audit, and product plans
 scripts/          benchmark helper
 ```
+
+---
+
+## Product roadmap and plans
+
+The backend is being extended beyond the recommendation engine into a usable
+product (accounts, saved plans, workout logging, feedback, trainer access).
+
+Start with:
+
+- [`docs/README.md`](docs/README.md) — documentation index
+- [`docs/product-roadmap.md`](docs/product-roadmap.md) — 3 priorities and 10 phases
+- [`docs/backend-plan.md`](docs/backend-plan.md) — backend scope per phase
+- [`docs/roles-and-access.md`](docs/roles-and-access.md) — roles, RBAC, consent
+- [`docs/data-model.md`](docs/data-model.md) — tables and invariants
+- [`docs/p0-1-identity-and-profiles.md`](docs/p0-1-identity-and-profiles.md) — next implementation phase
+
+Frontend: [`ridwanafazn/city-master-v2`](https://github.com/ridwanafazn/city-master-v2), live at [`jymz.pages.dev`](https://jymz.pages.dev/).
 
 ---
 

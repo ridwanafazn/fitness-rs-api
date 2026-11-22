@@ -92,3 +92,6 @@ still intentionally left for future work.
 - The in-memory `limits` store is per-process; use Redis for multiple instances.
 - The legacy Experta notebook/engine is not part of runtime; it remains in git
   history for academic reference.
+
+The execution plan for the product phases is in
+[`product-roadmap.md`](product-roadmap.md).
