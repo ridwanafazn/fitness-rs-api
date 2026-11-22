@@ -1,6 +1,6 @@
 # Production image. Python 3.12 is the supported runtime for the rewritten
 # application; the legacy 3.9 environment is kept only for old notebooks.
-FROM python:3.12-slim AS runtime
+FROM python:3.15-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
