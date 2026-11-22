@@ -67,6 +67,19 @@ def test_unknown_request_fields_are_ignored_for_backward_compatibility(client, v
 
 
 @pytest.mark.integration
+def test_unknown_soft_preferences_are_ignored_for_backward_compatibility(client, valid_payload):
+    response = client.post(
+        "/api/v1/recommendation/",
+        json={
+            **valid_payload,
+            "preferred_body_part": ["legs", "chest", "unknown"],
+            "preferred_equipment": ["spaceship", "dumbbell"],
+        },
+    )
+    assert response.status_code == 201, response.text
+
+
+@pytest.mark.integration
 def test_validation_error_has_legacy_detail_key(client, valid_payload):
     response = client.post(
         "/api/v1/recommendation/",
@@ -197,8 +210,6 @@ def test_by_focus_injured_area_fails_without_unsafe_fallback(client):
         {"available_days": 8},
         {"available_days": 0},
         {"injuries": ["broken_soul"]},
-        {"preferred_equipment": ["spaceship"]},
-        {"preferred_body_part": ["lower back"]},
         {"preferred_body_part": [["chest"]]},
         {"height_cm": 10},
         {"weight_kg": 1000},

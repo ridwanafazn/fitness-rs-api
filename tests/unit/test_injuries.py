@@ -42,6 +42,20 @@ def test_case_and_separator_normalisation():
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    ("phrase", "expected"),
+    [
+        ("knee pain", map_injury_to_body_parts(["knee"])),
+        ("lower back pain", map_injury_to_body_parts(["lower back"])),
+        ("shoulder injury", map_injury_to_body_parts(["shoulder"])),
+        ("ACL sprain", map_injury_to_body_parts(["acl"])),
+    ],
+)
+def test_common_injury_phrases_are_normalised(phrase, expected):
+    assert map_injury_to_body_parts([phrase]) == expected
+
+
+@pytest.mark.unit
 def test_unknown_injury_is_rejected():
     with pytest.raises(UnknownInjuryError) as exc_info:
         map_injury_to_body_parts(["broken_soul"])

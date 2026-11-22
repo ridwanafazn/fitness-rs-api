@@ -356,6 +356,32 @@ def normalise_token(value: str) -> str:
     return " ".join(str(value).lower().replace("_", " ").replace("-", " ").split())
 
 
+_INJURY_SUFFIXES = (
+    " pain",
+    " injury",
+    " injuries",
+    " strain",
+    " sprain",
+    " sakit",
+    " cedera",
+    " nyeri",
+)
+
+
+def normalise_injury_token(value: str) -> str:
+    """Normalise common free-text injury phrases (``knee pain`` -> ``knee``)."""
+
+    term = normalise_token(value)
+    changed = True
+    while changed:
+        changed = False
+        for suffix in _INJURY_SUFFIXES:
+            if term.endswith(suffix):
+                term = term[: -len(suffix)].strip()
+                changed = True
+    return term
+
+
 def coerce_body_part(value: str | BodyPart) -> BodyPart:
     if isinstance(value, BodyPart):
         return value
@@ -375,7 +401,7 @@ def coerce_focus(value: str | Focus) -> Focus:
 
 
 def is_valid_injury_term(term: str) -> bool:
-    normalised = normalise_token(term)
+    normalised = normalise_injury_token(term)
     return (
         normalised in INJURY_ALIASES
         or normalised in MUSCLE_TO_BODY_PART

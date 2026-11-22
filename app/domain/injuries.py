@@ -15,7 +15,7 @@ from app.domain.constants import (
     INJURY_ALIASES,
     MUSCLE_TO_BODY_PART,
     BodyPart,
-    normalise_token,
+    normalise_injury_token,
     supported_injury_terms,
 )
 
@@ -31,7 +31,7 @@ def map_injury_to_body_parts(injuries: Iterable[str]) -> Set[BodyPart]:
     unknown: List[str] = []
 
     for raw in injuries:
-        term = normalise_token(raw)
+        term = normalise_injury_token(raw)
         if not term:
             continue
         if term in INJURY_ALIASES:

@@ -12,6 +12,7 @@ from app.domain.constants import (
     Focus,
     Gender,
     is_valid_injury_term,
+    normalise_injury_token,
     normalise_token,
     supported_injury_terms,
 )
@@ -19,7 +20,7 @@ from app.domain.models import DayPlan, RecommendationPlan
 from app.schemas.exercise import ExerciseOut
 
 
-def _normalise_enum_list(value: Any, *, field_name: str) -> Any:
+def _normalise_enum_list(value: Any, *, field_name: str, enum_type) -> Any:
     if value is None:
         return []
     if isinstance(value, str):
@@ -31,6 +32,11 @@ def _normalise_enum_list(value: Any, *, field_name: str) -> Any:
         if not isinstance(item, str):
             raise ValueError(f"{field_name} hanya boleh berisi string.")
         token = normalise_token(item)
+        try:
+            enum_type(token)
+        except ValueError:
+            # Soft preferences are ignored when unknown, matching the old API.
+            continue
         if token and token not in result:
             result.append(token)
     return result
@@ -48,7 +54,7 @@ def _normalise_string_list(value: Any, *, field_name: str) -> List[str]:
     for item in value:
         if not isinstance(item, str):
             raise ValueError(f"{field_name} hanya boleh berisi string.")
-        token = normalise_token(item)
+        token = normalise_injury_token(item)
         if len(token) > 60:
             raise ValueError(f"{field_name} berisi nilai yang terlalu panjang.")
         if token and token not in seen:
@@ -100,12 +106,12 @@ class RecommendationRequest(BaseModel):
     @field_validator("preferred_body_part", mode="before")
     @classmethod
     def _normalise_body_part(cls, value: Any) -> Any:
-        return _normalise_enum_list(value, field_name="preferred_body_part")
+        return _normalise_enum_list(value, field_name="preferred_body_part", enum_type=BodyPart)
 
     @field_validator("preferred_equipment", mode="before")
     @classmethod
     def _normalise_equipment(cls, value: Any) -> Any:
-        return _normalise_enum_list(value, field_name="preferred_equipment")
+        return _normalise_enum_list(value, field_name="preferred_equipment", enum_type=Equipment)
 
 
 class RecommendationDay(BaseModel):
@@ -185,10 +191,15 @@ class ByFocusRequest(BaseModel):
             )
         return terms
 
-    @field_validator("preferred_body_part", "preferred_equipment", mode="before")
+    @field_validator("preferred_body_part", mode="before")
     @classmethod
-    def _normalise_list_fields(cls, value: Any) -> Any:
-        return _normalise_enum_list(value, field_name="preferred list")
+    def _normalise_body_part(cls, value: Any) -> Any:
+        return _normalise_enum_list(value, field_name="preferred_body_part", enum_type=BodyPart)
+
+    @field_validator("preferred_equipment", mode="before")
+    @classmethod
+    def _normalise_equipment(cls, value: Any) -> Any:
+        return _normalise_enum_list(value, field_name="preferred_equipment", enum_type=Equipment)
 
 
 class ByFocusResponse(BaseModel):
