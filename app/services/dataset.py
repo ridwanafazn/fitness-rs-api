@@ -17,7 +17,12 @@ from typing import Dict, List, Optional, Set
 
 from app.core.config import DEFAULT_DATASET_PATH
 from app.core.errors import DatasetError
-from app.domain.constants import Equipment, coerce_body_part, coerce_equipment
+from app.domain.constants import (
+    ALLOWED_MOVEMENT_TYPES,
+    Equipment,
+    coerce_body_part,
+    coerce_equipment,
+)
 from app.domain.models import Exercise
 
 REQUIRED_COLUMNS = (
@@ -53,7 +58,7 @@ def _parse_row(row: Dict[str, str], line_number: int) -> Exercise:
     equipment_raw = (row.get("equipment") or "").strip()
     primary_raw = (row.get("primary_muscle") or "").strip()
     exercise_type = (row.get("exercise_type") or "").strip()
-    movement_type = (row.get("movement_type") or "").strip()
+    movement_type = (row.get("movement_type") or "").strip().lower()
 
     if not exercise_id:
         raise DatasetError(f"Baris {line_number}: exercise_id kosong.")
@@ -69,6 +74,8 @@ def _parse_row(row: Dict[str, str], line_number: int) -> Exercise:
         raise DatasetError(f"Baris {line_number}: exercise_type kosong.")
     if not movement_type:
         raise DatasetError(f"Baris {line_number}: movement_type kosong.")
+    if movement_type not in ALLOWED_MOVEMENT_TYPES:
+        raise DatasetError(f"Baris {line_number}: movement_type '{movement_type}' tidak dikenal.")
 
     try:
         body_part = coerce_body_part(body_part_raw)
@@ -82,9 +89,7 @@ def _parse_row(row: Dict[str, str], line_number: int) -> Exercise:
         try:
             equipment.append(coerce_equipment(item))
         except ValueError as exc:
-            raise DatasetError(
-                f"Baris {line_number}: equipment '{item}' tidak dikenal."
-            ) from exc
+            raise DatasetError(f"Baris {line_number}: equipment '{item}' tidak dikenal.") from exc
     if not equipment:
         raise DatasetError(f"Baris {line_number}: equipment kosong.")
 
@@ -117,7 +122,10 @@ def load_dataset(path: Optional[Path] = None) -> Dataset:
     if not dataset_path.exists():
         raise DatasetError(f"Dataset tidak ditemukan: {dataset_path}")
 
-    raw = dataset_path.read_bytes()
+    try:
+        raw = dataset_path.read_bytes()
+    except OSError as exc:
+        raise DatasetError(f"Dataset tidak dapat dibaca: {dataset_path}") from exc
     version = hashlib.sha256(raw).hexdigest()[:16]
 
     try:
@@ -129,9 +137,7 @@ def load_dataset(path: Optional[Path] = None) -> Dataset:
     fieldnames = tuple(reader.fieldnames or ())
     missing = [column for column in REQUIRED_COLUMNS if column not in fieldnames]
     if missing:
-        raise DatasetError(
-            f"Kolom dataset tidak lengkap: {', '.join(missing)}"
-        )
+        raise DatasetError(f"Kolom dataset tidak lengkap: {', '.join(missing)}")
 
     exercises: List[Exercise] = []
     seen_ids: Set[str] = set()

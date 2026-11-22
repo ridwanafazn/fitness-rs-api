@@ -154,9 +154,7 @@ def score_solution(
 
         seen_body_parts.append(body_part)
 
-    score -= body_part_variation_penalty(
-        seen_body_parts, focus, available_parts, weights=weights
-    )
+    score -= body_part_variation_penalty(seen_body_parts, focus, available_parts, weights=weights)
     score -= muscle_variation_penalty(exercises, weights=weights)
 
     duplicate_count = len(seen_body_parts) - len(set(seen_body_parts))
@@ -176,9 +174,7 @@ def score_solution(
     return score
 
 
-def count_injured_exercises(
-    exercises: Iterable[Exercise], injured_parts: Set[BodyPart]
-) -> int:
+def count_injured_exercises(exercises: Iterable[Exercise], injured_parts: Set[BodyPart]) -> int:
     """Used by integration tests and output validation."""
 
     return sum(1 for exercise in exercises if exercise.body_part in injured_parts)

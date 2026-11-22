@@ -94,8 +94,8 @@ uvicorn app.main:app --reload
 
 Open http://127.0.0.1:8000/docs.
 
-> The project supports Python 3.9+ for the package, but the production
-> container and CI use Python 3.11/3.12. Python 3.9 is end-of-life upstream.
+> Python 3.11+ is required. The production container uses Python 3.12; CI runs
+> 3.11 and 3.12. Python 3.9/3.10 are end-of-life upstream.
 
 ### Docker
 
@@ -217,7 +217,7 @@ All settings are environment variables (see `.env.example`):
 | `CORS_ORIGINS` | localhost:3000,5173 | Exact allowed origins |
 | `ALLOWED_HOSTS` | `*` | TrustedHost allowlist |
 | `API_KEY` | empty | Optional `X-API-Key` gate |
-| `RATE_LIMIT_ENABLED` | `true` | Enable SlowAPI middleware |
+| `RATE_LIMIT_ENABLED` | `true` | Enable the rate-limit middleware |
 | `RATE_LIMIT` | `30/minute` | Default limit |
 | `RATE_LIMIT_STORAGE_URI` | `memory://` | Use Redis for multiple instances |
 | `TRUST_PROXY_HEADERS` | `false` | Trust `X-Forwarded-For` only behind your proxy |
@@ -249,6 +249,7 @@ Production checklist:
 ruff check app tests
 mypy app
 pytest -q --cov=app --cov-report=term-missing
+pip-audit -r requirements.txt
 ```
 
 The test suite covers:

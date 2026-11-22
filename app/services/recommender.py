@@ -54,9 +54,7 @@ class Recommender:
     ) -> None:
         for day_key, day in daywise.items():
             if not day.exercises:
-                raise ServiceUnavailableError(
-                    f"Tidak ada latihan yang dihasilkan untuk {day_key}."
-                )
+                raise ServiceUnavailableError(f"Tidak ada latihan yang dihasilkan untuk {day_key}.")
             for exercise in day.exercises:
                 if exercise.body_part in injured_parts:
                     # This should be impossible because the pool excludes
@@ -94,15 +92,11 @@ class Recommender:
         )
 
         if set(daywise) != set(rule_result.schedule):
-            raise ServiceUnavailableError(
-                "Jadwal tidak lengkap: beberapa hari gagal dioptimasi."
-            )
+            raise ServiceUnavailableError("Jadwal tidak lengkap: beberapa hari gagal dioptimasi.")
 
         self._validate_selected(daywise, injured_parts)
 
-        days: Tuple[DayPlan, ...] = tuple(
-            daywise[day_key] for day_key in rule_result.schedule
-        )
+        days: Tuple[DayPlan, ...] = tuple(daywise[day_key] for day_key in rule_result.schedule)
 
         return RecommendationPlan(
             bmi=profile.bmi,

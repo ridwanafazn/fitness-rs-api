@@ -46,11 +46,12 @@ silently recommending an injured area.
 `upperlower+focus`, not `ppl+focus`. This matches the trainer's recommendation
 and the actual implementation.
 
-If a scheduled focus has no safe body parts because of an injury (for example,
-a knee injury removes quadriceps, hamstrings, glutes, and calves), the day is
-replaced with `cardio` when cardio is safe. The response includes a warning
-explaining the substitution. This avoids rejecting an otherwise valid
-upper-body plan merely because one day cannot be filled safely.
+If a scheduled focus does not have enough safe body parts to remain meaningful
+(for example, a knee injury removes quadriceps, hamstrings, glutes, and calves
+from a lower day), the day is replaced with a specific safe focus or `cardio`.
+The response includes a warning explaining the substitution. This avoids
+rejecting an otherwise valid upper-body plan merely because one day cannot be
+filled safely.
 
 ## 3. Focus → body parts
 
@@ -109,6 +110,9 @@ For each day:
 - Gene = index into that day's safe pool.
 - Chromosome = exercise selection for that day.
 - `allow_duplicate_genes=False`.
+- Exercises already selected on an earlier day are removed from the pool when
+  possible; a small cross-day penalty applies only when the pool is too small
+  to avoid reuse.
 - Defaults: 25 generations, population 20, 8 parents, tournament selection,
   uniform crossover, random mutation 12% of genes, 3 kept parents,
   `saturate_8`.

@@ -96,6 +96,21 @@ def test_injured_body_part_never_appears_in_output(client, valid_payload):
 
 
 @pytest.mark.integration
+def test_weekly_plan_avoids_cross_day_duplicate_exercises(client, valid_payload):
+    payload = {
+        **valid_payload,
+        "available_days": 5,
+        "seed": 42,
+    }
+    response = client.post("/api/v1/recommendation/", json=payload)
+    assert response.status_code == 200, response.text
+    ids = [
+        exercise["exercise_id"] for day in response.json()["days"] for exercise in day["exercises"]
+    ]
+    assert len(ids) == len(set(ids))
+
+
+@pytest.mark.integration
 def test_knee_injury_adapts_leg_day_instead_of_failing_whole_plan(client, valid_payload):
     payload = {
         **valid_payload,
@@ -150,6 +165,7 @@ def test_by_focus_injured_area_fails_without_unsafe_fallback(client):
         {"injuries": ["broken_soul"]},
         {"preferred_equipment": ["spaceship"]},
         {"preferred_body_part": ["lower back"]},
+        {"preferred_body_part": [["chest"]]},
         {"height_cm": 10},
         {"weight_kg": 1000},
         {"unknown_field": True},
@@ -163,6 +179,19 @@ def test_invalid_payload_is_rejected(client, valid_payload, override):
     assert body["error"]["code"] == "validation_error"
     assert body["request_id"]
     assert body["error"]["details"]
+
+
+@pytest.mark.integration
+def test_404_and_405_use_the_error_envelope(client):
+    missing = client.get("/does-not-exist")
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "http_error"
+    assert missing.json()["request_id"]
+
+    wrong_method = client.get("/api/v1/recommendation/")
+    assert wrong_method.status_code == 405
+    assert wrong_method.json()["error"]["code"] == "http_error"
+    assert wrong_method.json()["request_id"]
 
 
 @pytest.mark.integration
@@ -310,7 +339,15 @@ def test_rate_limit_returns_429(dataset_path: Path):
         "seed": 1,
     }
     with TestClient(app) as client:
-        assert client.post("/api/v1/recommendation/", json=payload).status_code == 200
+        first = client.post("/api/v1/recommendation/", json=payload)
+        assert first.status_code == 200
+        assert first.headers["X-RateLimit-Limit"] == "1"
+        assert first.headers["X-RateLimit-Remaining"] == "0"
+
+        # Health checks must not consume the client quota.
+        assert client.get("/health").status_code == 200
+
         limited = client.post("/api/v1/recommendation/", json=payload)
         assert limited.status_code == 429
+        assert limited.headers["Retry-After"]
         assert limited.json()["error"]["code"] == "rate_limit_exceeded"

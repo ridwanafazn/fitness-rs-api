@@ -11,7 +11,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Dict
 
 _RESERVED = {
@@ -43,7 +43,7 @@ _RESERVED = {
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload: Dict[str, Any] = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -72,9 +72,7 @@ def configure_logging(level: str, *, json_format: bool = True) -> None:
     if json_format and os.getenv("LOG_FORMAT", "json").lower() != "console":
         handler.setFormatter(JsonFormatter())
     else:
-        handler.setFormatter(
-            logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s")
-        )
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s"))
     root.addHandler(handler)
 
     # Uvicorn's access logger is redundant with our access middleware.

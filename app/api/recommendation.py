@@ -33,14 +33,12 @@ async def _run_with_timeout(recommender: Recommender, func, *args, **kwargs):
             run_in_threadpool(func, *args, **kwargs),
             timeout=timeout,
         )
-    except asyncio.TimeoutError as exc:
+    except TimeoutError as exc:
         logger.warning(
             "recommendation_timeout",
             extra={"timeout_seconds": timeout},
         )
-        raise ServiceUnavailableError(
-            "Waktu komputasi rekomendasi habis. Coba lagi."
-        ) from exc
+        raise ServiceUnavailableError("Waktu komputasi rekomendasi habis. Coba lagi.") from exc
 
 
 @router.post(
@@ -50,8 +48,10 @@ async def _run_with_timeout(recommender: Recommender, func, *args, **kwargs):
     summary="Buat rencana latihan mingguan",
     responses={
         401: {"model": ErrorResponse, "description": "API key tidak valid"},
+        413: {"model": ErrorResponse, "description": "Body request terlalu besar"},
         422: {"model": ErrorResponse, "description": "Input atau constraint tidak valid"},
         429: {"model": ErrorResponse, "description": "Rate limit terlampaui"},
+        500: {"model": ErrorResponse, "description": "Kesalahan internal"},
         503: {"model": ErrorResponse, "description": "Komputasi timeout"},
     },
 )
@@ -81,8 +81,10 @@ async def create_recommendation(
     summary="Buat satu sesi latihan untuk fokus tertentu",
     responses={
         401: {"model": ErrorResponse, "description": "API key tidak valid"},
+        413: {"model": ErrorResponse, "description": "Body request terlalu besar"},
         422: {"model": ErrorResponse, "description": "Input atau constraint tidak valid"},
         429: {"model": ErrorResponse, "description": "Rate limit terlampaui"},
+        500: {"model": ErrorResponse, "description": "Kesalahan internal"},
         503: {"model": ErrorResponse, "description": "Komputasi timeout"},
     },
 )

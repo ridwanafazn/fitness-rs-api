@@ -29,6 +29,3 @@ def num_exercises_for_focus(focus: str | Focus) -> int:
     if target in SPECIFIC_BODY_PART_FOCUSES:
         return 4
     return 5
-
-
-

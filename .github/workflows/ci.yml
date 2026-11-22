@@ -38,6 +38,8 @@ jobs:
         run: mypy app --show-error-codes
       - name: Tests
         run: pytest -q --cov=app --cov-report=term-missing
+      - name: Dependency audit
+        run: pip-audit -r requirements.txt --progress-spinner off
 
   docker:
     name: Docker build

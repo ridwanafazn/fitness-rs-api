@@ -17,6 +17,8 @@ maintainer privately (GitHub: `@ridwanafazn`) with:
 - Keep `TRUST_PROXY_HEADERS=false` unless the API is behind a proxy you
   control.
 - Use a shared Redis store for rate limiting when running multiple instances.
+- The app checks `Content-Length`; also enforce a body-size limit at your
+  reverse proxy for chunked requests.
 - Keep dependencies current; Dependabot is configured for pip, Docker, and
   GitHub Actions.
 - The API is stateless and does not store user health data. Do not add

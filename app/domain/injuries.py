@@ -57,7 +57,7 @@ def map_injury_to_body_parts(injuries: Iterable[str]) -> Set[BodyPart]:
                     "(pectoralis major), atau istilah umum (knee, lower back, "
                     "elbow, wrist)."
                 ),
-            }
+            },
         )
 
     return mapped

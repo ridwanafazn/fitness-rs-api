@@ -65,9 +65,7 @@ def test_same_seed_is_reproducible():
     }
     first = run_ga_schedule(**kwargs)["day_1"]
     second = run_ga_schedule(**kwargs)["day_1"]
-    assert [e.exercise_id for e in first.exercises] == [
-        e.exercise_id for e in second.exercises
-    ]
+    assert [e.exercise_id for e in first.exercises] == [e.exercise_id for e in second.exercises]
 
 
 @pytest.mark.unit

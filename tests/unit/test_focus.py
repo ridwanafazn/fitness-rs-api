@@ -42,6 +42,3 @@ def test_focus_mapping(body_part, focus, expected):
 )
 def test_num_exercises_for_focus(focus, expected):
     assert num_exercises_for_focus(focus) == expected
-
-
-

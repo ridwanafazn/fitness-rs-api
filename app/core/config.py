@@ -11,7 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
 
-from pydantic import field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -53,20 +53,34 @@ class Settings(BaseSettings):
     # client can spoof X-Forwarded-For and reset its own rate limit.
     trust_proxy_headers: bool = False
 
-    max_request_bytes: int = 16_384
-    request_timeout_seconds: float = 15.0
+    max_request_bytes: int = Field(default=16_384, gt=0, le=10_000_000)
+    request_timeout_seconds: float = Field(default=15.0, gt=0, le=120)
 
     # Genetic algorithm defaults.  They can be overridden per deployment.
-    ga_num_generations: int = 25
-    ga_sol_per_pop: int = 20
-    ga_num_parents_mating: int = 8
-    ga_mutation_percent_genes: int = 12
-    ga_keep_parents: int = 3
+    ga_num_generations: int = Field(default=25, ge=1, le=1000)
+    ga_sol_per_pop: int = Field(default=20, ge=2, le=1000)
+    ga_num_parents_mating: int = Field(default=8, ge=1, le=1000)
+    ga_mutation_percent_genes: int = Field(default=12, ge=1, le=100)
+    ga_keep_parents: int = Field(default=3, ge=0, le=1000)
     ga_stop_criteria: str = "saturate_8"
-    ga_random_seed: Optional[int] = None
+    ga_random_seed: Optional[int] = Field(default=None, ge=0, le=2**32 - 1)
 
     docs_enabled: bool = True
     metrics_enabled: bool = True
+
+    @field_validator("ga_random_seed", mode="before")
+    @classmethod
+    def _empty_seed_is_none(cls, value):
+        if value == "":
+            return None
+        return value
+
+    @field_validator("dataset_path", mode="after")
+    @classmethod
+    def _resolve_dataset_path(cls, value: Path) -> Path:
+        if value.is_absolute():
+            return value
+        return (PROJECT_ROOT / value).resolve()
 
     @field_validator("log_level")
     @classmethod
@@ -86,13 +100,22 @@ class Settings(BaseSettings):
             raise ValueError(f"ENVIRONMENT must be one of {sorted(allowed)}")
         return lower
 
+    @model_validator(mode="after")
+    def _validate_ga_relationships(self) -> Settings:
+        if self.ga_num_parents_mating > self.ga_sol_per_pop:
+            raise ValueError("GA_NUM_PARENTS_MATING tidak boleh melebihi GA_SOL_PER_POP")
+        if self.ga_keep_parents > self.ga_sol_per_pop:
+            raise ValueError("GA_KEEP_PARENTS tidak boleh melebihi GA_SOL_PER_POP")
+        return self
+
     @property
     def cors_origin_list(self) -> List[str]:
         return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
 
     @property
     def allowed_host_list(self) -> List[str]:
-        return [item.strip() for item in self.allowed_hosts.split(",") if item.strip()]
+        hosts = [item.strip() for item in self.allowed_hosts.split(",") if item.strip()]
+        return hosts or ["*"]
 
     @property
     def is_production(self) -> bool:

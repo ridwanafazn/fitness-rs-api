@@ -61,8 +61,7 @@ class FitnessRuleEngine:
 
         try:
             preferred = tuple(
-                coerce_body_part(item)
-                for item in self._user_input.preferred_body_part
+                coerce_body_part(item) for item in self._user_input.preferred_body_part
             )
         except ValueError as exc:
             raise InvalidInputError("preferred_body_part tidak valid.") from exc

@@ -6,16 +6,13 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
-from slowapi import Limiter
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
-from slowapi.util import get_remote_address
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.v1.api import api_router
@@ -29,35 +26,13 @@ from app.core.logging import configure_logging
 from app.core.middleware import (
     AccessLogMiddleware,
     MaxBodySizeMiddleware,
+    RateLimitMiddleware,
     RequestIDMiddleware,
     SecurityHeadersMiddleware,
 )
 from app.services.dataset import clear_dataset_cache, get_dataset
 
 logger = logging.getLogger("fitness_api")
-
-
-def _client_key(request: Request) -> str:
-    settings: Settings = request.app.state.settings
-    if settings.trust_proxy_headers:
-        forwarded = request.headers.get("x-forwarded-for")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
-    return get_remote_address(request)
-
-
-def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
-    request_id = getattr(request.state, "request_id", "-")
-    return JSONResponse(
-        status_code=429,
-        content=error_payload(
-            code="rate_limit_exceeded",
-            message="Terlalu banyak request. Coba lagi beberapa saat.",
-            request_id=request_id,
-            details={"limit": str(exc.detail)},
-        ),
-        headers={"Retry-After": "60"},
-    )
 
 
 def _register_exception_handlers(app: FastAPI) -> None:
@@ -75,9 +50,7 @@ def _register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(RequestValidationError)
-    async def validation_handler(
-        request: Request, exc: RequestValidationError
-    ) -> JSONResponse:
+    async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
         request_id = getattr(request.state, "request_id", "-")
         return JSONResponse(
             status_code=422,
@@ -89,10 +62,8 @@ def _register_exception_handlers(app: FastAPI) -> None:
             ),
         )
 
-    @app.exception_handler(HTTPException)
-    async def http_exception_handler(
-        request: Request, exc: HTTPException
-    ) -> JSONResponse:
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         request_id = getattr(request.state, "request_id", "-")
         return JSONResponse(
             status_code=exc.status_code,
@@ -104,18 +75,8 @@ def _register_exception_handlers(app: FastAPI) -> None:
             headers=exc.headers,
         )
 
-    # Keep this handler synchronous: SlowAPI's default middleware uses the
-    # synchronous `sync_check_limits` path and ignores async handlers.
-    @app.exception_handler(RateLimitExceeded)
-    def rate_limit_exception_handler(
-        request: Request, exc: RateLimitExceeded
-    ) -> JSONResponse:
-        return _rate_limit_handler(request, exc)
-
     @app.exception_handler(Exception)
-    async def unhandled_exception_handler(
-        request: Request, exc: Exception
-    ) -> JSONResponse:
+    async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         request_id = getattr(request.state, "request_id", "-")
         logger.exception(
             "unhandled_exception",
@@ -179,18 +140,10 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
 
     app.state.settings = app_settings
 
-    # Rate limiting: default limits apply to every route.  Use a shared store
-    # (Redis) when running more than one instance.
-    limiter = Limiter(
-        key_func=_client_key,
-        default_limits=[app_settings.rate_limit] if app_settings.rate_limit_enabled else [],
-        storage_uri=app_settings.rate_limit_storage_uri,
-    )
-    app.state.limiter = limiter
-
     # Starlette treats the last-added middleware as the outermost layer.
     # Desired order (outermost -> innermost):
-    # CORS -> RequestID -> AccessLog -> rate limit -> body size -> gzip -> app.
+    # CORS -> security headers -> RequestID -> AccessLog -> rate limit ->
+    # body size -> trusted host -> gzip -> app.
     app.add_middleware(GZipMiddleware, minimum_size=500)
 
     if app_settings.allowed_host_list != ["*"]:
@@ -201,8 +154,13 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
 
     app.add_middleware(MaxBodySizeMiddleware, max_bytes=app_settings.max_request_bytes)
 
-    if app_settings.rate_limit_enabled:
-        app.add_middleware(SlowAPIMiddleware)
+    app.add_middleware(
+        RateLimitMiddleware,
+        enabled=app_settings.rate_limit_enabled,
+        limit=app_settings.rate_limit,
+        storage_uri=app_settings.rate_limit_storage_uri,
+        trust_proxy_headers=app_settings.trust_proxy_headers,
+    )
 
     app.add_middleware(AccessLogMiddleware)
     app.add_middleware(RequestIDMiddleware)
@@ -216,7 +174,13 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Content-Type", "X-API-Key", "X-Request-ID"],
-        expose_headers=["X-Process-Time", "X-Request-ID"],
+        expose_headers=[
+            "X-Process-Time",
+            "X-Request-ID",
+            "X-RateLimit-Limit",
+            "X-RateLimit-Remaining",
+            "X-RateLimit-Reset",
+        ],
         max_age=600,
     )
 

@@ -85,6 +85,23 @@ def test_preference_for_female_chest_is_respected():
 
 
 @pytest.mark.unit
+def test_duplicate_preference_does_not_double_the_bonus():
+    single = build_rule_result(
+        gender=Gender.MALE,
+        bmi=22.0,
+        available_days=5,
+        preferred_body_part=(BodyPart.GLUTES,),
+    )
+    duplicate = build_rule_result(
+        gender=Gender.MALE,
+        bmi=22.0,
+        available_days=5,
+        preferred_body_part=(BodyPart.GLUTES, BodyPart.GLUTES),
+    )
+    assert single.schedule == duplicate.schedule
+
+
+@pytest.mark.unit
 def test_injured_preference_is_not_used_for_focus_days():
     result = build_rule_result(
         gender=Gender.MALE,
@@ -111,6 +128,35 @@ def test_leg_day_is_replaced_when_all_leg_parts_are_injured():
         },
     )
     assert result.schedule["day_3"] is Focus.CARDIO
+    assert result.warnings
+
+
+@pytest.mark.unit
+def test_fullbody_with_one_safe_part_becomes_specific_focus():
+    injured = set(BodyPart) - {BodyPart.CHEST}
+    result = build_rule_result(
+        gender=Gender.MALE,
+        bmi=22.0,
+        available_days=1,
+        injured_body_parts=injured,
+    )
+    assert result.schedule["day_1"] is Focus.CHEST
+    assert result.warnings
+
+
+@pytest.mark.unit
+def test_lower_day_with_only_quads_safe_becomes_quads_focus():
+    result = build_rule_result(
+        gender=Gender.FEMALE,
+        bmi=22.0,
+        available_days=2,
+        injured_body_parts={
+            BodyPart.GLUTES,
+            BodyPart.HAMSTRINGS,
+            BodyPart.CALVES,
+        },
+    )
+    assert result.schedule["day_2"] is Focus.QUADRICEPS
     assert result.warnings
 
 

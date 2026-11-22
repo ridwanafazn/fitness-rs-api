@@ -31,6 +31,11 @@ from app.domain.models import DayPlan, Exercise
 
 logger = logging.getLogger(__name__)
 
+# Small penalty for reusing an exercise across days.  The pool filter below
+# normally removes used exercises entirely; this penalty only matters when the
+# safe pool is too small to avoid a repeat.
+CROSS_DAY_PENALTY = 5.0
+
 
 @dataclass(frozen=True)
 class GAConfig:
@@ -47,9 +52,7 @@ def _seed_for_day(base_seed: int, day_index: int) -> int:
     return (base_seed + day_index) % (2**32)
 
 
-def _post_process_cardio(
-    selected: Sequence[Exercise], focus: Focus
-) -> List[Exercise]:
+def _post_process_cardio(selected: Sequence[Exercise], focus: Focus) -> List[Exercise]:
     """Keep at most one run or two indoor-cardio exercises on a cardio day."""
 
     if focus is not Focus.CARDIO:
@@ -71,9 +74,7 @@ def _post_process_cardio(
     if indoor_indices and len(selected) > 2:
         ordered = [selected[index] for index in indoor_indices]
         ordered.extend(
-            exercise
-            for index, exercise in enumerate(selected)
-            if index not in indoor_indices
+            exercise for index, exercise in enumerate(selected) if index not in indoor_indices
         )
         return ordered[:2]
     return list(selected)
@@ -85,17 +86,24 @@ def _make_fitness_func(
     injured_body_parts: Set[BodyPart],
     preferred_body_parts: Set[BodyPart],
     available_parts: Set[BodyPart],
+    used_exercise_ids: Set[str],
 ):
     """Bind the day's context once, avoiding late-binding loop bugs."""
 
     def fitness_func(ga_instance, solution, _solution_idx):
         selected = [pool[int(index)] for index in solution]
-        return score_solution(
-            selected,
-            focus=focus,
-            injured_parts=injured_body_parts,
-            preferred_parts=preferred_body_parts,
-            available_parts=available_parts,
+        cross_day_penalty = CROSS_DAY_PENALTY * sum(
+            1 for exercise in selected if exercise.exercise_id in used_exercise_ids
+        )
+        return (
+            score_solution(
+                selected,
+                focus=focus,
+                injured_parts=injured_body_parts,
+                preferred_parts=preferred_body_parts,
+                available_parts=available_parts,
+            )
+            - cross_day_penalty
         )
 
     return fitness_func
@@ -117,29 +125,34 @@ def run_ga_schedule(
     """
 
     cfg = config or GAConfig()
-    base_seed = (
-        cfg.random_seed
-        if cfg.random_seed is not None
-        else secrets.randbelow(2**32)
-    )
+    base_seed = cfg.random_seed if cfg.random_seed is not None else secrets.randbelow(2**32)
 
     daywise: Dict[str, DayPlan] = {}
+    used_exercise_ids: Set[str] = set()
 
     for day_index, (day_key, focus) in enumerate(schedule.items()):
         pool = list(daily_exercise_pool.get(day_key, ()))
         num_genes = num_exercises_for_focus(focus)
 
-        if len(pool) < num_genes:
+        # Prefer exercises that have not appeared on an earlier day.  If the
+        # safe pool is too small to avoid reuse, keep the full pool and let the
+        # fitness penalty handle the unavoidable duplicate.
+        novel_pool = [
+            exercise for exercise in pool if exercise.exercise_id not in used_exercise_ids
+        ]
+        gene_pool = novel_pool if len(novel_pool) >= num_genes else pool
+
+        if len(gene_pool) < num_genes:
             raise InsufficientPoolError(
                 details={
                     "day": day_key,
                     "focus": focus.value,
                     "required": num_genes,
-                    "available": len(pool),
+                    "available": len(gene_pool),
                 }
             )
 
-        available_parts = {exercise.body_part for exercise in pool}
+        available_parts = {exercise.body_part for exercise in gene_pool}
         day_seed = _seed_for_day(base_seed, day_index)
 
         ga = pygad.GA(
@@ -147,15 +160,16 @@ def run_ga_schedule(
             sol_per_pop=cfg.sol_per_pop,
             num_parents_mating=cfg.num_parents_mating,
             fitness_func=_make_fitness_func(
-                pool,
+                gene_pool,
                 focus,
                 injured_body_parts,
                 preferred_body_parts,
                 available_parts,
+                used_exercise_ids,
             ),
             num_genes=num_genes,
             gene_type=int,
-            gene_space=list(range(len(pool))),
+            gene_space=list(range(len(gene_pool))),
             allow_duplicate_genes=False,
             parent_selection_type="tournament",
             crossover_type="uniform",
@@ -173,7 +187,8 @@ def run_ga_schedule(
             extra={
                 "day": day_key,
                 "focus": focus.value,
-                "pool_size": len(pool),
+                "pool_size": len(gene_pool),
+                "novel_pool_size": len(novel_pool),
                 "num_genes": num_genes,
                 "seed": day_seed,
             },
@@ -181,8 +196,9 @@ def run_ga_schedule(
         ga.run()
 
         best_solution, best_fitness, _ = ga.best_solution()
-        selected = [pool[int(index)] for index in best_solution]
+        selected = [gene_pool[int(index)] for index in best_solution]
         selected = _post_process_cardio(selected, focus)
+        used_exercise_ids.update(exercise.exercise_id for exercise in selected)
 
         logger.info(
             "ga_finished",

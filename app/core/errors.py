@@ -33,7 +33,7 @@ class UnauthorizedError(AppError):
 
 class InvalidInputError(AppError):
     code = "invalid_input"
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     message = "Input tidak valid."
 
 
@@ -54,7 +54,7 @@ class InvalidFocusError(InvalidInputError):
 
 class InsufficientPoolError(AppError):
     code = "insufficient_exercise_pool"
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     message = (
         "Tidak cukup latihan aman untuk menyusun jadwal pada fokus tersebut. "
         "Coba longgarkan preferensi alat atau kurangi area cedera."

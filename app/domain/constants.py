@@ -7,16 +7,16 @@ the filter understands ``chest`` but the fitness function expects ``Chest``.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Dict, FrozenSet, Set
 
 
-class Gender(str, Enum):
+class Gender(StrEnum):
     MALE = "male"
     FEMALE = "female"
 
 
-class BodyPart(str, Enum):
+class BodyPart(StrEnum):
     NECK = "neck"
     SHOULDERS = "shoulders"
     CHEST = "chest"
@@ -32,7 +32,7 @@ class BodyPart(str, Enum):
     CARDIO = "cardio"
 
 
-class Equipment(str, Enum):
+class Equipment(StrEnum):
     BARBELL = "barbell"
     BODY_WEIGHT = "body weight"
     CABLE = "cable"
@@ -52,7 +52,7 @@ class Equipment(str, Enum):
     WHEEL_ROLLER = "wheel roller"
 
 
-class Focus(str, Enum):
+class Focus(StrEnum):
     FULLBODY = "fullbody"
     UPPER = "upper"
     LOWER = "lower"
@@ -79,6 +79,7 @@ class Focus(str, Enum):
 ALL_BODY_PARTS: FrozenSet[BodyPart] = frozenset(BodyPart)
 ALL_EQUIPMENT: FrozenSet[Equipment] = frozenset(Equipment)
 ALL_FOCUS: FrozenSet[Focus] = frozenset(Focus)
+ALLOWED_MOVEMENT_TYPES: FrozenSet[str] = frozenset({"compound", "isolation", "cardio"})
 
 BODY_PART_VALUES = tuple(item.value for item in BodyPart)
 EQUIPMENT_VALUES = tuple(item.value for item in Equipment)
@@ -108,12 +109,8 @@ FOCUS_TO_BODY_PARTS: Dict[Focus, FrozenSet[BodyPart]] = {
             BodyPart.CALVES,
         }
     ),
-    Focus.PUSH: frozenset(
-        {BodyPart.SHOULDERS, BodyPart.CHEST, BodyPart.TRICEPS}
-    ),
-    Focus.PULL: frozenset(
-        {BodyPart.BACK, BodyPart.BICEPS, BodyPart.FOREARMS, BodyPart.NECK}
-    ),
+    Focus.PUSH: frozenset({BodyPart.SHOULDERS, BodyPart.CHEST, BodyPart.TRICEPS}),
+    Focus.PULL: frozenset({BodyPart.BACK, BodyPart.BICEPS, BodyPart.FOREARMS, BodyPart.NECK}),
     Focus.LEGS: frozenset(
         {
             BodyPart.GLUTES,
@@ -147,6 +144,21 @@ for _part in BodyPart:
     if _part is BodyPart.CARDIO:
         continue
     FOCUS_TO_BODY_PARTS[Focus(_part.value)] = frozenset({_part})
+
+# Minimum number of distinct safe body parts for a composite day to remain
+# meaningful.  A "fullbody" day with only one safe body part is better labelled
+# as that specific focus (or replaced with cardio).
+FOCUS_MIN_SAFE_PARTS: Dict[Focus, int] = {
+    Focus.FULLBODY: 3,
+    Focus.UPPER: 3,
+    Focus.LOWER: 2,
+    Focus.PUSH: 2,
+    Focus.PULL: 2,
+    Focus.LEGS: 2,
+    Focus.MALE_FOCUS: 3,
+    Focus.FEMALE_FOCUS: 3,
+    Focus.CARDIO: 1,
+}
 
 GENDER_DEFAULT_FOCUS: Dict[Gender, tuple[BodyPart, ...]] = {
     Gender.MALE: (
@@ -276,46 +288,24 @@ INJURY_ALIASES: Dict[str, FrozenSet[BodyPart]] = {
             BodyPart.CALVES,
         }
     ),
-    "lower back": frozenset(
-        {BodyPart.BACK, BodyPart.GLUTES, BodyPart.HAMSTRINGS}
-    ),
-    "lowerback": frozenset(
-        {BodyPart.BACK, BodyPart.GLUTES, BodyPart.HAMSTRINGS}
-    ),
-    "low back": frozenset(
-        {BodyPart.BACK, BodyPart.GLUTES, BodyPart.HAMSTRINGS}
-    ),
+    "lower back": frozenset({BodyPart.BACK, BodyPart.GLUTES, BodyPart.HAMSTRINGS}),
+    "lowerback": frozenset({BodyPart.BACK, BodyPart.GLUTES, BodyPart.HAMSTRINGS}),
+    "low back": frozenset({BodyPart.BACK, BodyPart.GLUTES, BodyPart.HAMSTRINGS}),
     "lumbago": frozenset({BodyPart.BACK}),
     "upper back": frozenset({BodyPart.BACK}),
-    "sciatica": frozenset(
-        {BodyPart.BACK, BodyPart.GLUTES, BodyPart.HAMSTRINGS}
-    ),
-    "shoulder": frozenset(
-        {BodyPart.SHOULDERS, BodyPart.CHEST, BodyPart.TRICEPS}
-    ),
-    "shoulders": frozenset(
-        {BodyPart.SHOULDERS, BodyPart.CHEST, BodyPart.TRICEPS}
-    ),
+    "sciatica": frozenset({BodyPart.BACK, BodyPart.GLUTES, BodyPart.HAMSTRINGS}),
+    "shoulder": frozenset({BodyPart.SHOULDERS, BodyPart.CHEST, BodyPart.TRICEPS}),
+    "shoulders": frozenset({BodyPart.SHOULDERS, BodyPart.CHEST, BodyPart.TRICEPS}),
     "rotator cuff": frozenset({BodyPart.SHOULDERS, BodyPart.BACK}),
-    "elbow": frozenset(
-        {BodyPart.BICEPS, BodyPart.TRICEPS, BodyPart.FOREARMS}
-    ),
-    "elbows": frozenset(
-        {BodyPart.BICEPS, BodyPart.TRICEPS, BodyPart.FOREARMS}
-    ),
-    "tennis elbow": frozenset(
-        {BodyPart.BICEPS, BodyPart.TRICEPS, BodyPart.FOREARMS}
-    ),
+    "elbow": frozenset({BodyPart.BICEPS, BodyPart.TRICEPS, BodyPart.FOREARMS}),
+    "elbows": frozenset({BodyPart.BICEPS, BodyPart.TRICEPS, BodyPart.FOREARMS}),
+    "tennis elbow": frozenset({BodyPart.BICEPS, BodyPart.TRICEPS, BodyPart.FOREARMS}),
     "wrist": frozenset({BodyPart.FOREARMS}),
     "wrists": frozenset({BodyPart.FOREARMS}),
     "ankle": frozenset({BodyPart.CALVES}),
     "ankles": frozenset({BodyPart.CALVES}),
-    "hip": frozenset(
-        {BodyPart.GLUTES, BodyPart.QUADRICEPS, BodyPart.HAMSTRINGS}
-    ),
-    "hips": frozenset(
-        {BodyPart.GLUTES, BodyPart.QUADRICEPS, BodyPart.HAMSTRINGS}
-    ),
+    "hip": frozenset({BodyPart.GLUTES, BodyPart.QUADRICEPS, BodyPart.HAMSTRINGS}),
+    "hips": frozenset({BodyPart.GLUTES, BodyPart.QUADRICEPS, BodyPart.HAMSTRINGS}),
     "hernia": frozenset({BodyPart.ABS}),
     "bicep": frozenset({BodyPart.BICEPS}),
     "biceps": frozenset({BodyPart.BICEPS}),
@@ -363,9 +353,7 @@ SPLIT_UPPERLOWER_FOCUS = "upperlower+focus"
 def normalise_token(value: str) -> str:
     """Lowercase, strip, and collapse separators for user-facing vocabulary."""
 
-    return " ".join(
-        str(value).lower().replace("_", " ").replace("-", " ").split()
-    )
+    return " ".join(str(value).lower().replace("_", " ").replace("-", " ").split())
 
 
 def coerce_body_part(value: str | BodyPart) -> BodyPart:
@@ -396,8 +384,4 @@ def is_valid_injury_term(term: str) -> bool:
 
 
 def supported_injury_terms() -> Set[str]:
-    return (
-        set(INJURY_ALIASES)
-        | set(MUSCLE_TO_BODY_PART)
-        | {part.value for part in BodyPart}
-    )
+    return set(INJURY_ALIASES) | set(MUSCLE_TO_BODY_PART) | {part.value for part in BodyPart}

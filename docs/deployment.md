@@ -9,7 +9,9 @@ Environment variables to set in the Render dashboard:
 
 - `ENVIRONMENT=production`
 - `CORS_ORIGINS=https://your-frontend.example`
-- `ALLOWED_HOSTS=your-api.onrender.com`
+- `ALLOWED_HOSTS=your-api.onrender.com` (include any internal health-check
+  hostname, or leave `*` if the platform's health checker uses a host you
+  cannot enumerate)
 - `API_KEY=...` (optional but recommended for a public API)
 - `TRUST_PROXY_HEADERS=true`
 - `RATE_LIMIT=30/minute`
@@ -54,9 +56,10 @@ client can spoof the header and reset its own limit.
 
 ## Rate limiting
 
-`slowapi` uses in-memory storage by default. That is fine for one instance.
+The rate limiter uses an in-memory `limits` store by default. That is fine for one instance.
 For multiple instances, point `RATE_LIMIT_STORAGE_URI` at Redis so counters are
-shared.
+shared. Install the Redis client extra in that environment (for example,
+`pip install "limits[redis]"`).
 
 ## Metrics
 

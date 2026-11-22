@@ -19,6 +19,23 @@ from app.domain.models import DayPlan, RecommendationPlan
 from app.schemas.exercise import ExerciseOut
 
 
+def _normalise_enum_list(value: Any, *, field_name: str) -> Any:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, (list, tuple)):
+        return value
+    result: List[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError(f"{field_name} hanya boleh berisi string.")
+        token = normalise_token(item)
+        if token and token not in result:
+            result.append(token)
+    return result
+
+
 def _normalise_string_list(value: Any, *, field_name: str) -> List[str]:
     if value is None:
         return []
@@ -27,13 +44,15 @@ def _normalise_string_list(value: Any, *, field_name: str) -> List[str]:
     if not isinstance(value, (list, tuple)):
         raise ValueError(f"{field_name} harus berupa list.")
     result: List[str] = []
+    seen = set()
     for item in value:
         if not isinstance(item, str):
             raise ValueError(f"{field_name} hanya boleh berisi string.")
         token = normalise_token(item)
         if len(token) > 60:
             raise ValueError(f"{field_name} berisi nilai yang terlalu panjang.")
-        if token:
+        if token and token not in seen:
+            seen.add(token)
             result.append(token)
     return result
 
@@ -70,32 +89,19 @@ class RecommendationRequest(BaseModel):
         if unknown:
             examples = ", ".join(sorted(supported_injury_terms())[:20])
             raise ValueError(
-                f"Cedera tidak dikenali: {', '.join(unknown)}. "
-                f"Contoh yang didukung: {examples}."
+                f"Cedera tidak dikenali: {', '.join(unknown)}. Contoh yang didukung: {examples}."
             )
         return terms
 
     @field_validator("preferred_body_part", mode="before")
     @classmethod
     def _normalise_body_part(cls, value: Any) -> Any:
-        if value is None:
-            return []
-        if isinstance(value, str):
-            value = [value]
-        if not isinstance(value, (list, tuple)):
-            return value
-        return [normalise_token(item) if isinstance(item, str) else item for item in value]
+        return _normalise_enum_list(value, field_name="preferred_body_part")
 
     @field_validator("preferred_equipment", mode="before")
     @classmethod
     def _normalise_equipment(cls, value: Any) -> Any:
-        if value is None:
-            return []
-        if isinstance(value, str):
-            value = [value]
-        if not isinstance(value, (list, tuple)):
-            return value
-        return [normalise_token(item) if isinstance(item, str) else item for item in value]
+        return _normalise_enum_list(value, field_name="preferred_equipment")
 
 
 class RecommendationDay(BaseModel):
@@ -130,10 +136,7 @@ class RecommendationResponse(BaseModel):
                 RecommendationDay(
                     day=day.day,
                     day_focus=day.focus,
-                    exercises=[
-                        ExerciseOut.from_domain(exercise)
-                        for exercise in day.exercises
-                    ],
+                    exercises=[ExerciseOut.from_domain(exercise) for exercise in day.exercises],
                 )
                 for day in plan.days
             ],
@@ -174,21 +177,14 @@ class ByFocusRequest(BaseModel):
         if unknown:
             examples = ", ".join(sorted(supported_injury_terms())[:20])
             raise ValueError(
-                f"Cedera tidak dikenali: {', '.join(unknown)}. "
-                f"Contoh yang didukung: {examples}."
+                f"Cedera tidak dikenali: {', '.join(unknown)}. Contoh yang didukung: {examples}."
             )
         return terms
 
     @field_validator("preferred_body_part", "preferred_equipment", mode="before")
     @classmethod
     def _normalise_list_fields(cls, value: Any) -> Any:
-        if value is None:
-            return []
-        if isinstance(value, str):
-            value = [value]
-        if not isinstance(value, (list, tuple)):
-            return value
-        return [normalise_token(item) if isinstance(item, str) else item for item in value]
+        return _normalise_enum_list(value, field_name="preferred list")
 
 
 class ByFocusResponse(BaseModel):

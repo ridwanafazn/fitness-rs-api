@@ -37,9 +37,7 @@ def test_lower_back_maps_to_posterior_chain():
 
 @pytest.mark.unit
 def test_case_and_separator_normalisation():
-    assert map_injury_to_body_parts(["LOWER-BACK"]) == map_injury_to_body_parts(
-        ["lower back"]
-    )
+    assert map_injury_to_body_parts(["LOWER-BACK"]) == map_injury_to_body_parts(["lower back"])
     assert map_injury_to_body_parts(["Knee"]) == map_injury_to_body_parts(["knee"])
 
 

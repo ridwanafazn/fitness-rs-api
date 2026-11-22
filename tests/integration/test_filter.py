@@ -45,8 +45,7 @@ def test_equipment_preference_is_respected_when_pool_is_large(dataset_path):
     assert pool
     for exercise in pool:
         assert (
-            Equipment.BODY_WEIGHT in exercise.equipment
-            or Equipment.DUMBBELL in exercise.equipment
+            Equipment.BODY_WEIGHT in exercise.equipment or Equipment.DUMBBELL in exercise.equipment
         )
 
 

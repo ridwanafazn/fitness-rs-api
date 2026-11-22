@@ -15,6 +15,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 from app.core.errors import InvalidInputError, UnsupportedDaysError
 from app.domain.constants import (
+    FOCUS_MIN_SAFE_PARTS,
     FOCUS_TO_BODY_PARTS,
     GENDER_DEFAULT_FOCUS,
     GENDER_PRIORITY,
@@ -51,14 +52,13 @@ def _focus_scores(
     """Rank focus options, with preferences first and injuries last."""
 
     injured_set = set(injured)
-    focus_options = _unique(
-        list(GENDER_DEFAULT_FOCUS[gender]) + list(preferred)
-    )
+    preferred_unique = _unique(preferred)
+    focus_options = _unique(list(GENDER_DEFAULT_FOCUS[gender]) + list(preferred_unique))
 
     scores: Dict[BodyPart, int] = dict.fromkeys(focus_options, 0)
 
-    if preferred:
-        for part in preferred:
+    if preferred_unique:
+        for part in preferred_unique:
             if part in scores:
                 scores[part] += PREFERENCE_BONUS
     else:
@@ -83,10 +83,11 @@ def _focus_scores(
     return ranked
 
 
-def _focus_has_safe_parts(focus: Focus, injured: set[BodyPart]) -> bool:
+def _focus_is_viable(focus: Focus, injured: set[BodyPart]) -> bool:
     if focus is Focus.CARDIO:
         return BodyPart.CARDIO not in injured
-    return bool(FOCUS_TO_BODY_PARTS[focus] - injured)
+    safe_parts = FOCUS_TO_BODY_PARTS[focus] - injured
+    return len(safe_parts) >= FOCUS_MIN_SAFE_PARTS.get(focus, 1)
 
 
 def _adapt_schedule_for_injuries(
@@ -105,16 +106,29 @@ def _adapt_schedule_for_injuries(
     warnings: List[str] = []
 
     for day_key, focus in list(schedule.items()):
-        if _focus_has_safe_parts(focus, injured_set):
+        if _focus_is_viable(focus, injured_set):
             continue
 
         replacement: Optional[Focus] = None
-        if BodyPart.CARDIO not in injured_set:
+        original_parts = FOCUS_TO_BODY_PARTS[focus]
+
+        # Prefer a specific safe part of the original focus (e.g. a quads day
+        # instead of a lower day).  Fall back to cardio, then to any safe focus.
+        for part in focus_order:
+            if part not in original_parts:
+                continue
+            candidate = Focus(part.value)
+            if _focus_is_viable(candidate, injured_set):
+                replacement = candidate
+                break
+
+        if replacement is None and BodyPart.CARDIO not in injured_set:
             replacement = Focus.CARDIO
-        else:
+
+        if replacement is None:
             for part in focus_order:
                 candidate = Focus(part.value)
-                if _focus_has_safe_parts(candidate, injured_set):
+                if _focus_is_viable(candidate, injured_set):
                     replacement = candidate
                     break
 
@@ -128,8 +142,7 @@ def _adapt_schedule_for_injuries(
 
         schedule[day_key] = replacement
         warnings.append(
-            f"{day_key}: fokus '{focus.value}' diganti menjadi "
-            f"'{replacement.value}' karena cedera."
+            f"{day_key}: fokus '{focus.value}' diganti menjadi '{replacement.value}' karena cedera."
         )
 
     return schedule, tuple(warnings)
@@ -231,9 +244,7 @@ def build_rule_result(
                 "day_5": Focus(focus_order[1].value),
             }
 
-    schedule, warnings = _adapt_schedule_for_injuries(
-        schedule, focus_order, injured
-    )
+    schedule, warnings = _adapt_schedule_for_injuries(schedule, focus_order, injured)
 
     return RuleResult(
         split_method=split,

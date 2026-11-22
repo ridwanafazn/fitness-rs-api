@@ -66,6 +66,16 @@ def test_unknown_body_part_is_rejected(tmp_path):
 
 
 @pytest.mark.unit
+def test_unknown_movement_type_is_rejected(tmp_path):
+    path = _write(
+        tmp_path,
+        "1,bench press,chest,barbell,pectorals,,weight_reps,stretch,http://img\n",
+    )
+    with pytest.raises(DatasetError, match="movement_type"):
+        load_dataset(path)
+
+
+@pytest.mark.unit
 def test_missing_column_is_rejected(tmp_path):
     path = tmp_path / "dataset.csv"
     path.write_text("exercise_id,exercise_name\n1,bench\n", encoding="utf-8")

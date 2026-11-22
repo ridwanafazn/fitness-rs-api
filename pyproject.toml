@@ -7,27 +7,29 @@ name = "fitness-rs-api"
 version = "2.0.0"
 description = "Hybrid rule-based + genetic-algorithm fitness recommender API"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Ridwan Ahmad Fauzan" }]
 dependencies = [
-  "fastapi>=0.116,<1",
-  "uvicorn[standard]>=0.35,<1",
-  "pydantic>=2.11,<3",
-  "pydantic-settings>=2.11,<3",
-  "pygad>=3.5,<4",
-  "numpy>=1.26,<3",
-  "slowapi>=0.1.10,<1",
-  "prometheus-fastapi-instrumentator>=7.1,<8",
+  "fastapi>=0.165,<1",
+  "uvicorn[standard]>=0.54,<1",
+  "pydantic>=2.14,<3",
+  "pydantic-settings>=2.16,<3",
+  "pygad>=3.9,<4",
+  "numpy>=2.5,<3",
+  "cloudpickle>=3.1,<4",
+  "limits>=5.8,<6",
+  "prometheus-fastapi-instrumentator>=8.1,<9",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8.4,<9",
+  "pytest>=9.2,<10",
   "pytest-cov>=7.1,<8",
-  "httpx>=0.28,<1",
+  "httpx2>=2.16,<3",
   "ruff>=0.17,<1",
-  "mypy>=1.19,<2",
+  "mypy>=2.4,<3",
+  "pip-audit>=2.10,<3",
 ]
 
 [tool.setuptools.packages.find]
@@ -52,14 +54,13 @@ show_missing = true
 skip_covered = true
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py311"
 line-length = 100
 src = ["app", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "C4", "PIE", "RET"]
-# The runtime still supports Python 3.9, so keep typing.List/Optional and
-# runtime-evaluated generics instead of the Python 3.10 union syntax.
+# Keep the existing typing style for a focused diff; the runtime is Python 3.11+.
 ignore = ["E501", "UP006", "UP035", "UP045", "B008"]
 
 [tool.ruff.lint.isort]
@@ -69,7 +70,7 @@ known-first-party = ["app", "tests"]
 quote-style = "double"
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.11"
 mypy_path = "."
 explicit_package_bases = true
 warn_unused_ignores = true

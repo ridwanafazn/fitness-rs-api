@@ -21,9 +21,7 @@ from app.domain.models import Exercise
 from app.services.dataset import Dataset
 
 
-def _matches_equipment(
-    exercise: Exercise, preferred_equipment: Set[Equipment]
-) -> bool:
+def _matches_equipment(exercise: Exercise, preferred_equipment: Set[Equipment]) -> bool:
     # Body-weight movements are always available.  Otherwise at least one of
     # the exercise's equipment values must be in the user's preferred set.
     if Equipment.BODY_WEIGHT in exercise.equipment:
@@ -47,34 +45,20 @@ def filter_exercises(
     relaxes injuries.
     """
 
-    safe = [
-        exercise
-        for exercise in dataset.exercises
-        if exercise.body_part not in injured_parts
-    ]
+    safe = [exercise for exercise in dataset.exercises if exercise.body_part not in injured_parts]
 
-    focus_safe = [
-        exercise for exercise in safe if is_exercise_focus(exercise.body_part, focus)
-    ]
+    focus_safe = [exercise for exercise in safe if is_exercise_focus(exercise.body_part, focus)]
 
     # The thesis treats cardio as a separate session; fullbody excludes it.
     if focus is Focus.FULLBODY:
         focus_safe = [
-            exercise
-            for exercise in focus_safe
-            if exercise.body_part is not BodyPart.CARDIO
+            exercise for exercise in focus_safe if exercise.body_part is not BodyPart.CARDIO
         ]
     elif focus is Focus.CARDIO:
-        focus_safe = [
-            exercise
-            for exercise in focus_safe
-            if exercise.body_part is BodyPart.CARDIO
-        ]
+        focus_safe = [exercise for exercise in focus_safe if exercise.body_part is BodyPart.CARDIO]
 
     equipment_safe = [
-        exercise
-        for exercise in focus_safe
-        if _matches_equipment(exercise, preferred_equipment)
+        exercise for exercise in focus_safe if _matches_equipment(exercise, preferred_equipment)
     ]
     if len(equipment_safe) >= required:
         return equipment_safe
