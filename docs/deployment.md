@@ -73,6 +73,15 @@ P1.2 trainer:
 - Seed the `trainer` role manually; see `p1-2-trainer-workspace.md`.
 - Invite delivery is manual until P1.3 notifications.
 
+P1.3 notifications:
+
+- `NOTIFICATIONS_ENABLED=true` to mount preferences/devices/calendar/integrations.
+- `NOTIFICATION_DELIVERY_MODE=log|webhook|disabled`.
+- `NOTIFICATION_WEBHOOK_URL` is required for webhook mode.
+- `TOKEN_ENCRYPTION_KEY` is a Fernet key for device/integration tokens.
+- `INTEGRATION_STATE_SECRET` signs OAuth state and unsubscribe tokens.
+- Run `python scripts/process_outbox.py` as a worker.
+
 See [`neon-auth.md`](neon-auth.md) for the Neon Auth token contract.
 
 Run the migration before shifting traffic:

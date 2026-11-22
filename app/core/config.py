@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Literal, Optional
 from urllib.parse import urlparse
 
 from pydantic import Field, SecretStr, field_validator, model_validator
@@ -94,6 +94,16 @@ class Settings(BaseSettings):
 
     # P1.2 trainer workspace. Requires P0.2 plans and a database.
     trainer_enabled: bool = False
+
+    # P1.3 notifications, calendar, devices, and integrations.
+    notifications_enabled: bool = False
+    notification_delivery_mode: Literal["log", "webhook", "disabled"] = "log"
+    notification_webhook_url: Optional[str] = None
+    token_encryption_key: Optional[str] = None
+    integration_state_secret: Optional[str] = None
+    strava_client_id: Optional[str] = None
+    strava_client_secret: Optional[str] = None
+    strava_redirect_uri: Optional[str] = None
 
     # Rate limiting.  memory:// is fine for a single instance; use a Redis URI
     # when running more than one worker/instance.
@@ -301,6 +311,19 @@ class Settings(BaseSettings):
                 raise ValueError("TRAINER_ENABLED membutuhkan PLANS_ENABLED=true")
             if self.is_production and not self.database_url:
                 raise ValueError("DATABASE_URL wajib di production saat trainer aktif")
+
+        if self.notifications_enabled:
+            if not self.plans_enabled:
+                raise ValueError("NOTIFICATIONS_ENABLED membutuhkan PLANS_ENABLED=true")
+            if self.is_production and not self.database_url:
+                raise ValueError("DATABASE_URL wajib di production saat notifikasi aktif")
+            if (
+                self.notification_delivery_mode == "webhook"
+                and not self.notification_webhook_url
+            ):
+                raise ValueError(
+                    "NOTIFICATION_WEBHOOK_URL wajib saat mode webhook"
+                )
 
         return self
 

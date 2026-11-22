@@ -53,6 +53,10 @@ def test_alembic_upgrade_and_downgrade_on_sqlite(tmp_path: Path) -> None:
             "access_grants",
             "plan_reviews",
             "trainer_comments",
+            "notification_preferences",
+            "devices",
+            "notification_outbox",
+            "integration_tokens",
         } <= tables
 
         user_columns = {column["name"] for column in inspector.get_columns("users")}
@@ -95,5 +99,7 @@ def test_alembic_upgrade_and_downgrade_on_sqlite(tmp_path: Path) -> None:
         assert "weekly_reviews" not in tables
         assert "trainer_profiles" not in tables
         assert "trainer_clients" not in tables
+        assert "notification_preferences" not in tables
+        assert "notification_outbox" not in tables
     finally:
         engine.dispose()

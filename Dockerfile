@@ -18,6 +18,7 @@ COPY app ./app
 COPY data ./data
 COPY alembic.ini ./
 COPY migrations ./migrations
+COPY scripts ./scripts
 COPY pyproject.toml README.md ./
 
 USER app

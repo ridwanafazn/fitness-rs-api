@@ -1208,6 +1208,12 @@ def export_ics(
     return content
 
 
+def calendar_ics_for_plan(session: Session, plan: Plan) -> bytes:
+    version = get_current_version(session, plan)
+    days = load_days(session, version.id)
+    return _ics_bytes(plan, version, days)
+
+
 def build_share_response(
     token: str,
     share: PlanShare,

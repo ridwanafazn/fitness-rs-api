@@ -321,9 +321,13 @@ Notes live on the session/exercise/set rows.
 
 # P1.3 — Notifications and integrations
 
-- `notification_preferences`, `devices`, `integration_tokens`, `outbox`.
-- Email/push/WhatsApp, calendar feed, optional Strava/Health.
-- Outbox + queue + retry + idempotency.
+**Status:** implemented behind `NOTIFICATIONS_ENABLED=false`. See
+`p1-3-notifications-and-integrations.md` for the contract and tests.
+
+- `notification_preferences`, `devices`, `notification_outbox`,
+  `integration_tokens`.
+- Email/push/WhatsApp flags, calendar feed, optional Strava.
+- Outbox + retry + idempotency; `scripts/process_outbox.py` worker.
 - Unsubscribe and quiet hours.
 
 # P2.1 — Organizations and billing

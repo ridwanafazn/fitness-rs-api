@@ -191,6 +191,30 @@ The `trainer` role is seeded manually. Client scopes are `plans`, `workouts`,
 `feedback`, and `progress`; missing/revoked scope returns `403
 trainer_access_denied`.
 
+## P1.3 notification endpoints
+
+Mounted only when `NOTIFICATIONS_ENABLED=true`. Full contract:
+[`p1-3-notifications-and-integrations.md`](p1-3-notifications-and-integrations.md).
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET/PATCH | `/api/v1/me/notifications` | user | Preferences |
+| POST | `/api/v1/me/notifications/test` | user | Enqueue test |
+| GET | `/api/v1/me/notifications/unsubscribe-token` | user | Email unsubscribe link |
+| GET | `/api/v1/notifications/unsubscribe/{token}` | public | Unsubscribe email |
+| GET/POST | `/api/v1/me/devices` | user | List/register devices |
+| DELETE | `/api/v1/me/devices/{id}` | user | Remove device |
+| GET | `/api/v1/me/calendar.ics` | user | Authenticated calendar |
+| POST | `/api/v1/me/calendar/token` | user | Public calendar token |
+| GET | `/api/v1/calendar/{token}.ics` | public | Public calendar |
+| GET/DELETE | `/api/v1/me/integrations` | user | List/disconnect |
+| POST | `/api/v1/me/integrations/{provider}/authorize` | user | Start OAuth |
+| POST | `/api/v1/integrations/{provider}/callback` | public | OAuth callback |
+
+Delivery modes are `log`, `webhook`, or `disabled`. Run
+`python scripts/process_outbox.py` to enqueue due reminders and process the
+outbox.
+
 ## Response envelope
 
 Success uses the endpoint-specific schema. Every response includes:

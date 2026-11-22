@@ -9,7 +9,16 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api import feedback, me, plans, progress, recommendation, trainer, workouts
+from app.api import (
+    feedback,
+    me,
+    notifications,
+    plans,
+    progress,
+    recommendation,
+    trainer,
+    workouts,
+)
 from app.core.config import Settings
 
 
@@ -92,6 +101,17 @@ def build_api_router(settings: Settings) -> APIRouter:
             trainer.client_trainer_router,
             prefix="/me",
             tags=["trainer"],
+        )
+
+    if settings.notifications_enabled:
+        router.include_router(
+            notifications.router,
+            prefix="/me",
+            tags=["notifications"],
+        )
+        router.include_router(
+            notifications.public_router,
+            tags=["notifications"],
         )
 
     return router

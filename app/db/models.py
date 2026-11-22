@@ -1088,3 +1088,143 @@ class TrainerComment(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )
+
+class NotificationPreference(Base):
+    __tablename__ = "notification_preferences"
+    __table_args__ = (
+        UniqueConstraint("owner_user_id", name="uq_notification_preferences_owner"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    email_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    push_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    whatsapp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    reminder_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    reminder_time: Mapped[str] = mapped_column(String(5), default="18:00", nullable=False)
+    timezone: Mapped[str] = mapped_column(String(64), default="UTC", nullable=False)
+    quiet_hours_start: Mapped[Optional[str]] = mapped_column(String(5))
+    quiet_hours_end: Mapped[Optional[str]] = mapped_column(String(5))
+    weekly_review_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    calendar_token_hash: Mapped[Optional[str]] = mapped_column(String(64))
+    calendar_token_created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True)
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+
+class Device(Base):
+    __tablename__ = "devices"
+    __table_args__ = (
+        UniqueConstraint("owner_user_id", "token_hash", name="uq_devices_owner_token"),
+        Index("ix_devices_owner", "owner_user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    platform: Mapped[str] = mapped_column(String(16), nullable=False)
+    device_name: Mapped[Optional[str]] = mapped_column(String(120))
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    token_ciphertext: Mapped[Optional[str]] = mapped_column(Text)
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+
+class NotificationOutbox(Base):
+    __tablename__ = "notification_outbox"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_notification_outbox_key"),
+        CheckConstraint(
+            "channel IN ('email', 'push', 'whatsapp')",
+            name="ck_notification_outbox_channel",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'sent', 'failed', 'cancelled')",
+            name="ck_notification_outbox_status",
+        ),
+        Index("ix_notification_outbox_due", "status", "scheduled_at"),
+        Index("ix_notification_outbox_owner", "owner_user_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    channel: Mapped[str] = mapped_column(String(16), nullable=False)
+    template: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[Dict[str, Any]] = mapped_column(
+        json_type(), default=dict, nullable=False
+    )
+    scheduled_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    last_error: Mapped[Optional[str]] = mapped_column(Text)
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+
+class IntegrationToken(Base):
+    __tablename__ = "integration_tokens"
+    __table_args__ = (
+        UniqueConstraint("owner_user_id", "provider", name="uq_integration_tokens_owner_provider"),
+        CheckConstraint(
+            "provider IN ('strava', 'google_fit', 'apple_health')",
+            name="ck_integration_tokens_provider",
+        ),
+        CheckConstraint(
+            "status IN ('active', 'revoked')",
+            name="ck_integration_tokens_status",
+        ),
+        Index("ix_integration_tokens_owner", "owner_user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    external_user_id: Mapped[Optional[str]] = mapped_column(String(128))
+    access_token_ciphertext: Mapped[Optional[str]] = mapped_column(Text)
+    refresh_token_ciphertext: Mapped[Optional[str]] = mapped_column(Text)
+    scopes: Mapped[List[str]] = mapped_column(json_type(), default=list, nullable=False)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(16), default="active", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )

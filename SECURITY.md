@@ -67,6 +67,9 @@ maintainer privately (GitHub: `@ridwanafazn`) with:
 - P1.2 trainer access is relationship- and scope-scoped; client revocation is
   immediate. Invitation tokens are hashed. Comments, emails, and review notes
   are never logged or put in audit metadata.
+- P1.3 device/integration tokens are encrypted with `TOKEN_ENCRYPTION_KEY`;
+  raw tokens are never returned by the API. Outbox payloads contain no device
+  tokens. OAuth state and unsubscribe links are HMAC-signed.
 - Audit metadata excludes workout notes and injury terms.
 - Do not add new categories of health data without reviewing consent, retention,
   and access controls.

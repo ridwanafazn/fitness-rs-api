@@ -368,11 +368,46 @@ Rules:
 
 ---
 
-## P1/P2 tables (summary)
+## P1.3 notification tables
+
+```text
+notification_preferences
+  id, owner_user_id, email_enabled, push_enabled, whatsapp_enabled,
+  reminder_enabled, reminder_time, timezone,
+  quiet_hours_start, quiet_hours_end, weekly_review_enabled,
+  calendar_token_hash, calendar_token_created_at, created_at, updated_at
+
+devices
+  id, owner_user_id, platform, device_name, token_hash,
+  token_ciphertext, last_seen_at, created_at, updated_at
+
+notification_outbox
+  id, owner_user_id, channel, template, payload jsonb, scheduled_at,
+  status, attempts, max_attempts, idempotency_key, last_error,
+  sent_at, created_at, updated_at
+
+integration_tokens
+  id, owner_user_id, provider, external_user_id,
+  access_token_ciphertext, refresh_token_ciphertext, scopes jsonb,
+  expires_at, status, created_at, updated_at
+```
+
+Rules:
+
+- `notification_preferences` one row per user.
+- Device tokens are hashed for lookup and encrypted (Fernet) for delivery.
+- Outbox `idempotency_key` is unique; retries/backoff update the same row.
+- Integration tokens are encrypted and never returned raw.
+- Calendar/unsubscribe tokens are random or HMAC-signed and contain no PII.
+- Quiet hours may wrap midnight; due reminders are suppressed inside them.
+- Raw device/integration tokens never appear in logs or audit metadata.
+
+---
+
+## P2 tables (summary)
 
 | Phase | Tables |
 |---|---|
-| P1.3 | `notification_preferences`, `devices`, `integration_tokens`, `outbox` |
 | P2.1 | `organizations`, `memberships`, `subscriptions`, `entitlements`, `invoices`, `api_clients` |
 | P2.2 | `events`, `experiments`, `assignments`, `quality_reviews` |
 | P2.3 | no new domain tables; operational infrastructure |
@@ -415,7 +450,9 @@ Rules:
 11. `daily_metrics` → `personal_records` → `weekly_reviews`
 12. `trainer_profiles` → `trainer_clients` → `trainer_invitations` →
     `access_grants` → `plan_reviews` → `trainer_comments`
-13. P2 tables
+13. `notification_preferences` → `devices` → `notification_outbox` →
+    `integration_tokens`
+14. P2 tables
 
 Steps 1–7 are implemented in `migrations/versions/0001_identity_profiles.py`.
 The P0.2 plan tables are implemented in
@@ -423,10 +460,11 @@ The P0.2 plan tables are implemented in
 `migrations/versions/0003_workouts.py`. The P0.4 feedback/safety tables are
 implemented in `migrations/versions/0004_feedback.py`. The P1.1 progress tables
 are implemented in `migrations/versions/0005_progress.py`. The P1.2 trainer
-tables are implemented in `migrations/versions/0006_trainer.py`. Each migration
-must be reversible where practical, and tested against a fresh database. All
-migrations are tested on SQLite (upgrade + downgrade); the Postgres runbook is
-in `hosting.md`.
+tables are implemented in `migrations/versions/0006_trainer.py`. The P1.3
+notification tables are implemented in
+`migrations/versions/0007_notifications.py`. Each migration must be reversible
+where practical, and tested against a fresh database. All migrations are tested
+on SQLite (upgrade + downgrade); the Postgres runbook is in `hosting.md`.
 
 ---
 

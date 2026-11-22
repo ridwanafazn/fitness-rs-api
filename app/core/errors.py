@@ -223,6 +223,43 @@ class TrainerValidationError(InvalidInputError):
     message = "Data trainer tidak valid."
 
 
+class NotificationValidationError(InvalidInputError):
+    code = "notification_invalid"
+    message = "Preferensi notifikasi tidak valid."
+
+
+class DeviceNotFoundError(NotFoundError):
+    code = "device_not_found"
+    message = "Device tidak ditemukan."
+
+
+class CalendarNotFoundError(NotFoundError):
+    code = "calendar_not_found"
+    message = "Calendar feed tidak ditemukan."
+
+
+class IntegrationNotConfiguredError(AppError):
+    code = "integration_not_configured"
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    message = "Integrasi belum dikonfigurasi."
+
+
+class IntegrationStateError(ForbiddenError):
+    code = "integration_state_invalid"
+    message = "State integrasi tidak valid atau kedaluwarsa."
+
+
+class IntegrationUnsupportedError(InvalidInputError):
+    code = "integration_unsupported"
+    message = "Provider integrasi tidak didukung."
+
+
+class IntegrationExchangeError(AppError):
+    code = "integration_exchange_failed"
+    status_code = status.HTTP_502_BAD_GATEWAY
+    message = "Pertukaran token integrasi gagal."
+
+
 class ProfileValidationError(InvalidInputError):
     code = "validation_error"
     message = "Data profil tidak valid."
