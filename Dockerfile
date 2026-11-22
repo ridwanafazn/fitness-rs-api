@@ -1,15 +1,29 @@
-# Gunakan Python 3.9.11 sebagai base
-FROM python:3.9.11-slim
+# Production image. Python 3.12 is the supported runtime for the rewritten
+# application; the legacy 3.9 environment is kept only for old notebooks.
+FROM python:3.12-slim AS runtime
 
-# Set working directory
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
 WORKDIR /app
 
-# Salin file requirements dan install
-COPY requirements.txt .
+RUN addgroup --system app && adduser --system --ingroup app app
+
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Salin semua file proyek
-COPY . .
+COPY app ./app
+COPY data ./data
+COPY pyproject.toml README.md ./
 
-# Expose port dan jalankan app (ganti kalau pakai modul berbeda)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+USER app
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD python -c "import os, urllib.request; port=os.environ.get('PORT','8080'); urllib.request.urlopen(f'http://127.0.0.1:{port}/ready', timeout=3)"
+
+# Render/Fly/Cloud Run inject PORT. The default keeps local docker runs simple.
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --workers ${WEB_CONCURRENCY:-1}"]

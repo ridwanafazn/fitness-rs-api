@@ -3,9 +3,9 @@ Mengumpulkan semua router versi 1. Saat ini baru ada `recommendation`.
 Jika nanti Anda punya `users`, `auth`, dll., tambahkan di sini juga.
 """
 
+# Router yg sudah kita buat tadi
 from fastapi import APIRouter
 
-# Router yg sudah kita buat tadi
 from app.api import recommendation
 
 api_router = APIRouter()

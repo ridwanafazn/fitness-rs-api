@@ -1,121 +1,229 @@
-# app/schemas/recommendation.py
-"""
-Refactored for Production:
-Meningkatkan kedalaman validasi menggunakan Pydantic v2,
-menambahkan contoh data (examples) untuk Swagger UI,
-dan memperketat batasan keamanan input (constraints).
-"""
+"""Request/response schemas for the recommendation API."""
 
-from typing import List, Dict, Optional
-from pydantic import BaseModel, Field, field_validator, ValidationInfo
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.domain.constants import (
+    BodyPart,
+    Equipment,
+    Focus,
+    Gender,
+    is_valid_injury_term,
+    normalise_token,
+    supported_injury_terms,
+)
+from app.domain.models import DayPlan, RecommendationPlan
 from app.schemas.exercise import ExerciseOut
 
-VALID_FOCUS = [
-    "fullbody", "upper", "lower", "push", "pull", "legs", "cardio",
-    "neck", "shoulders", "chest", "back", "abs", "biceps", "triceps",
-    "forearms", "glutes", "quadriceps", "hamstrings", "calves"
-]
+
+def _normalise_string_list(value: Any, *, field_name: str) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{field_name} harus berupa list.")
+    result: List[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError(f"{field_name} hanya boleh berisi string.")
+        token = normalise_token(item)
+        if len(token) > 60:
+            raise ValueError(f"{field_name} berisi nilai yang terlalu panjang.")
+        if token:
+            result.append(token)
+    return result
+
 
 class RecommendationRequest(BaseModel):
-    """
-    Schema untuk input pembuatan program fitness.
-    Sudah dilengkapi dengan batasan realistis (misal: berat badan tidak mungkin 1000kg).
-    """
-    gender: str = Field(
-        ..., 
-        pattern="^(male|female)$",
-        description="Jenis kelamin biologis (male/female) untuk prioritas otot."
-    )
-    height_cm: float = Field(
-        ..., 
-        gt=50, 
-        le=300,
-        description="Tinggi badan dalam sentimeter (cm)."
-    )
-    weight_kg: float = Field(
-        ..., 
-        gt=10, 
-        le=400,
-        description="Berat badan dalam kilogram (kg)."
-    )
-    injuries: List[str] = Field(
-        default_factory=list,
-        max_length=5,
-        description="Daftar area otot yang mengalami cedera. Maksimal 5."
-    )
-    available_days: int = Field(
-        ..., 
-        ge=1, 
-        le=7, # REFACTORED: Diubah dari le=5 menjadi le=7 (seminggu) agar lebih fleksibel
-        description="Jumlah hari yang tersedia dalam seminggu."
-    )
-    preferred_body_part: List[str] = Field(
-        default_factory=list,
-        max_length=5,
-        description="Daftar area otot yang ingin difokuskan."
-    )
-    preferred_equipment: List[str] = Field(
-        default_factory=list,
-        description="Daftar alat yang tersedia (opsional)."
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    gender: Gender
+    height_cm: float = Field(..., gt=50, le=300)
+    weight_kg: float = Field(..., gt=10, le=400)
+    injuries: List[str] = Field(default_factory=list, max_length=10)
+    available_days: int = Field(..., ge=1, le=5)
+    preferred_body_part: List[BodyPart] = Field(default_factory=list, max_length=5)
+    preferred_equipment: List[Equipment] = Field(default_factory=list, max_length=10)
+    seed: Optional[int] = Field(
+        default=None,
+        ge=0,
+        le=2**32 - 1,
+        description="Seed opsional untuk hasil yang reproducible.",
     )
 
-    # Menambahkan konfigurasi untuk dokumentasi Swagger
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "gender": "male",
-                "height_cm": 175.5,
-                "weight_kg": 72.0,
-                "injuries": ["knee", "lower back"],
-                "available_days": 4,
-                "preferred_body_part": ["chest", "biceps"],
-                "preferred_equipment": ["dumbbell", "barbell"]
-            }
-        }
-    }
+    @field_validator("gender", mode="before")
+    @classmethod
+    def _normalise_gender(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return normalise_token(value)
+        return value
+
+    @field_validator("injuries", mode="before")
+    @classmethod
+    def _validate_injuries(cls, value: Any) -> List[str]:
+        terms = _normalise_string_list(value, field_name="injuries")
+        unknown = [term for term in terms if not is_valid_injury_term(term)]
+        if unknown:
+            examples = ", ".join(sorted(supported_injury_terms())[:20])
+            raise ValueError(
+                f"Cedera tidak dikenali: {', '.join(unknown)}. "
+                f"Contoh yang didukung: {examples}."
+            )
+        return terms
+
+    @field_validator("preferred_body_part", mode="before")
+    @classmethod
+    def _normalise_body_part(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, (list, tuple)):
+            return value
+        return [normalise_token(item) if isinstance(item, str) else item for item in value]
+
+    @field_validator("preferred_equipment", mode="before")
+    @classmethod
+    def _normalise_equipment(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, (list, tuple)):
+            return value
+        return [normalise_token(item) if isinstance(item, str) else item for item in value]
 
 
 class RecommendationDay(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
+
     day: int
-    day_focus: str
+    day_focus: Focus
     exercises: List[ExerciseOut]
+
 
 class RecommendationResponse(BaseModel):
-    bmi: float = Field(..., description="Hasil perhitungan Body Mass Index.")
-    bmi_category: str = Field(..., description="Kategori BMI (Normal, Overweight, dll).")
-    split_type: str = Field(..., description="Metode split yang direkomendasikan.")
-    schedule: Dict[str, str] = Field(..., description="Jadwal harian (misal: day_1: upper).")
+    model_config = ConfigDict(use_enum_values=True)
+
+    bmi: float
+    bmi_category: str
+    split_type: str
+    schedule: Dict[str, Focus]
     days: List[RecommendationDay]
+    seed: int
+    dataset_version: str
+    algorithm_version: str
+    warnings: List[str] = Field(default_factory=list)
+
+    @classmethod
+    def from_plan(cls, plan: RecommendationPlan) -> RecommendationResponse:
+        return cls(
+            bmi=plan.bmi,
+            bmi_category=plan.bmi_category,
+            split_type=plan.split_type,
+            schedule=plan.schedule,
+            days=[
+                RecommendationDay(
+                    day=day.day,
+                    day_focus=day.focus,
+                    exercises=[
+                        ExerciseOut.from_domain(exercise)
+                        for exercise in day.exercises
+                    ],
+                )
+                for day in plan.days
+            ],
+            seed=plan.seed,
+            dataset_version=plan.dataset_version,
+            algorithm_version=plan.algorithm_version,
+            warnings=list(plan.warnings),
+        )
+
 
 class ByFocusRequest(BaseModel):
-    day_focus: str = Field(..., description="Fokus latihan spesifik.")
-    injuries: List[str] = Field(default_factory=list, max_length=5)
-    preferred_equipment: List[str] = Field(default_factory=list)
-    preferred_body_part: List[str] = Field(default_factory=list, max_length=5)
-    bmi: Optional[float] = Field(default=None, gt=0, le=100)
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    @field_validator("day_focus")
+    day_focus: Focus
+    injuries: List[str] = Field(default_factory=list, max_length=10)
+    preferred_equipment: List[Equipment] = Field(default_factory=list, max_length=10)
+    preferred_body_part: List[BodyPart] = Field(default_factory=list, max_length=5)
+    bmi: Optional[float] = Field(
+        default=None,
+        gt=0,
+        le=100,
+        description="Opsional; endpoint by-focus tidak memakai BMI untuk memilih exercise.",
+    )
+    seed: Optional[int] = Field(default=None, ge=0, le=2**32 - 1)
+
+    @field_validator("day_focus", mode="before")
     @classmethod
-    def validate_day_focus(cls, v: str, info: ValidationInfo) -> str:
-        """
-        REFACTORED: Menggunakan Pydantic v2 @field_validator.
-        Mengecek apakah fokus hari valid.
-        """
-        v_lower = v.lower()
-        if v_lower not in VALID_FOCUS:
-            raise ValueError(f"Fokus '{v}' tidak valid. Fokus yang tersedia: {', '.join(VALID_FOCUS[:5])}...")
-        return v_lower
-        
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "day_focus": "chest",
-                "injuries": ["shoulder"],
-                "bmi": 24.5
-            }
-        }
-    }
+    def _normalise_day_focus(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return normalise_token(value)
+        return value
+
+    @field_validator("injuries", mode="before")
+    @classmethod
+    def _validate_injuries(cls, value: Any) -> List[str]:
+        terms = _normalise_string_list(value, field_name="injuries")
+        unknown = [term for term in terms if not is_valid_injury_term(term)]
+        if unknown:
+            examples = ", ".join(sorted(supported_injury_terms())[:20])
+            raise ValueError(
+                f"Cedera tidak dikenali: {', '.join(unknown)}. "
+                f"Contoh yang didukung: {examples}."
+            )
+        return terms
+
+    @field_validator("preferred_body_part", "preferred_equipment", mode="before")
+    @classmethod
+    def _normalise_list_fields(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, (list, tuple)):
+            return value
+        return [normalise_token(item) if isinstance(item, str) else item for item in value]
+
 
 class ByFocusResponse(BaseModel):
-    day_focus: str
+    model_config = ConfigDict(use_enum_values=True)
+
+    day_focus: Focus
     exercises: List[ExerciseOut]
+    seed: int
+    dataset_version: str
+    algorithm_version: str
+
+    @classmethod
+    def from_day(
+        cls,
+        day: DayPlan,
+        *,
+        seed: int,
+        dataset_version: str,
+        algorithm_version: str,
+    ) -> ByFocusResponse:
+        return cls(
+            day_focus=day.focus,
+            exercises=[ExerciseOut.from_domain(exercise) for exercise in day.exercises],
+            seed=seed,
+            dataset_version=dataset_version,
+            algorithm_version=algorithm_version,
+        )
+
+
+class ErrorDetail(BaseModel):
+    code: str
+    message: str
+    details: Optional[Any] = None
+
+
+class ErrorResponse(BaseModel):
+    error: ErrorDetail
+    request_id: str

@@ -1,144 +1,86 @@
-# app/rules/rule_engine.py
+"""Compatibility facade for the original rule-engine API.
 
-from experta import KnowledgeEngine, Fact, Field, Rule, MATCH
-from typing import List, Dict, Tuple
-import logging
+The production path calls :func:`app.domain.rules.build_rule_result` directly.
+This facade keeps the old ``FitnessRuleEngine``/``UserInput`` interface for
+existing scripts and tests without importing the unmaintained ``experta``
+package.
 
-# ──────────────────────────────────────────────
-# STANDARISASI LOGGING
-# ──────────────────────────────────────────────
-logger = logging.getLogger(__name__)
+The original Experta implementation is preserved in git history; the decision
+table is behaviourally equivalent for the one rule the thesis actually uses.
+"""
 
-# ──────────────────────────────────────────────
-# Konstanta
-PREF_BONUS = 5
-INJURY_PENALTY = -100
-DEFAULT_PRIORITY_PENALTY = -1
+from __future__ import annotations
 
-# ──────────────────────────────────────────────
-# Facts
-class UserInput(Fact):
-    """Fakta input pengguna untuk sistem rekomendasi fitness."""
-    gender = Field(str, default="unknown")
-    bmi = Field(float, default=0.0)
-    injuries = Field(list, default=[])
-    available_days = Field(int, default=1)
-    preferred_body_part = Field(list, default=[])
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
+
+from app.core.errors import InvalidInputError
+from app.domain.constants import Gender, coerce_body_part
+from app.domain.injuries import map_injury_to_body_parts
+from app.domain.models import RuleResult
+from app.domain.rules import build_rule_result
 
 
-class Recommendation(Fact):
-    """Fakta output rekomendasi jadwal dan metode split."""
-    split_method = Field(str, default="")
-    schedule = Field(dict, default={})
+@dataclass
+class UserInput:
+    gender: str
+    bmi: float
+    injuries: List[str] = field(default_factory=list)
+    available_days: int = 1
+    preferred_body_part: List[str] = field(default_factory=list)
 
 
-# ──────────────────────────────────────────────
-# Rule Engine
-class FitnessRuleEngine(KnowledgeEngine):
-    """Engine sistem pakar untuk menentukan rekomendasi program fitness."""
+@dataclass
+class Recommendation:
+    split_method: str
+    schedule: Dict[str, str]
 
-    def _score_focus(self, focus: str, user_data: dict) -> int:
-        """
-        Hitung skor fokus berdasarkan preferensi dan cedera pengguna.
-        """
-        score = 0
-        if user_data['preferred_body_part'] and focus in user_data['preferred_body_part']:
-            score += PREF_BONUS
-        if user_data['injuries'] and focus in user_data['injuries']:
-            score += INJURY_PENALTY
-        return score
 
-    def _priority_score(self, focus: str, gender: str) -> int:
-        """
-        Memberikan penalti jika pengguna tidak menyebutkan preferensi.
-        """
-        if gender.lower() == 'female':
-            priority = {
-                'glutes': 0, 'quadriceps': 1, 'hamstrings': 2, 'abs': 3,
-            }
-        elif gender.lower() == 'male':
-            priority = {
-                'chest': 1, 'shoulders': 2, 'biceps': 3, 'triceps': 4,
-                'back': 5, 'abs': 6,
-            }
-        else:
-            priority = {}
-        return priority.get(focus, 100)
+class FitnessRuleEngine:
+    """Stateful facade around the pure rule table."""
 
-    @Rule(UserInput(gender=MATCH.gender,
-                    bmi=MATCH.bmi,
-                    injuries=MATCH.injuries,
-                    available_days=MATCH.days,
-                    preferred_body_part=MATCH.pref))
-    def decide_recommendation(self, gender, bmi, injuries, days, pref):
-        """
-        Aturan utama: menentukan metode split dan jadwal berdasarkan input pengguna.
-        """
-        # REFACTORED: Menggunakan logger, bukan print
-        logger.info(f"Processing Rule Engine -> Gender: {gender}, BMI: {bmi}, Days: {days}, Pref: {pref}")
+    def __init__(self) -> None:
+        self._user_input: Optional[UserInput] = None
+        self._result: Optional[RuleResult] = None
 
-        schedule = {}
-        split = 'fullbody'
+    def reset(self) -> None:
+        self._user_input = None
+        self._result = None
 
-        # Fokus berdasarkan gender
-        focus_options = (
-            ['glutes', 'quadriceps', 'hamstrings', 'abs']
-            if gender.lower() == 'female'
-            else ['chest', 'biceps', 'triceps', 'shoulders', 'back', 'abs']
+    def declare(self, fact: UserInput) -> None:
+        self._user_input = fact
+
+    def run(self) -> None:
+        if self._user_input is None:
+            raise InvalidInputError("UserInput belum dideklarasikan.")
+
+        try:
+            gender = Gender(self._user_input.gender.lower())
+        except ValueError as exc:
+            raise InvalidInputError("Gender harus male atau female.") from exc
+
+        try:
+            preferred = tuple(
+                coerce_body_part(item)
+                for item in self._user_input.preferred_body_part
+            )
+        except ValueError as exc:
+            raise InvalidInputError("preferred_body_part tidak valid.") from exc
+
+        injured = map_injury_to_body_parts(self._user_input.injuries)
+
+        self._result = build_rule_result(
+            gender=gender,
+            bmi=self._user_input.bmi,
+            available_days=self._user_input.available_days,
+            preferred_body_part=preferred,
+            injured_body_parts=injured,
         )
 
-        # Hitung skor fokus
-        user_data = {
-            'preferred_body_part': pref,
-            'injuries': injuries
-        }
-
-        scores = {f: self._score_focus(f, user_data) for f in focus_options}
-
-        if not pref:
-            for f in focus_options:
-                scores[f] += -self._priority_score(f, gender)
-
-        # Urutkan fokus berdasarkan skor
-        sorted_focus = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        sorted_focus = [x[0] for x in sorted_focus]
-        if len(sorted_focus) < 2:
-            sorted_focus += focus_options[:2 - len(sorted_focus)]
-
-        # Tentukan split dan jadwal
-        if days == 1:
-            split = 'fullbody'
-            schedule['day_1'] = 'cardio' if bmi >= 25.0 else 'fullbody'
-        elif days == 2:
-            split = 'upperlower'
-            schedule = {'day_1': 'upper', 'day_2': 'cardio' if bmi >= 25.0 else 'lower'}
-        elif days == 3:
-            if bmi >= 25.0:
-                split, schedule = 'upperlower', {'day_1': 'upper', 'day_2': 'lower', 'day_3': 'cardio'}
-            else:
-                split, schedule = 'ppl', {'day_1': 'push', 'day_2': 'pull', 'day_3': 'legs'}
-        elif days == 4:
-            if bmi >= 25.0:
-                split, schedule = 'upperlower', {'day_1': 'upper', 'day_2': 'cardio', 'day_3': 'lower', 'day_4': 'cardio'}
-            else:
-                split, schedule = 'upperlower', {'day_1': 'upper', 'day_2': 'lower', 'day_3': 'upper', 'day_4': 'lower'}
-        elif days >= 5: # REFACTORED: Gunakan >= 5 untuk menangani fallback hari tak terduga
-            if bmi >= 25.0:
-                split, schedule = 'upperlower+focus', {'day_1': 'upper', 'day_2': 'cardio', 'day_3': sorted_focus[0], 'day_4': 'cardio', 'day_5': 'lower'}
-            else:
-                split, schedule = 'ppl+focus', {'day_1': 'push', 'day_2': 'pull', 'day_3': 'legs', 'day_4': sorted_focus[0], 'day_5': sorted_focus[1]}
-
-        logger.debug(f"Rule Engine Output -> Split: {split}, Schedule: {schedule}")
-        self.declare(Recommendation(split_method=split, schedule=schedule))
-
     def get_result(self) -> Tuple[str, Dict[str, str]]:
-        """
-        Mengembalikan split_method dan schedule dari Recommendation yang telah di-declare.
-        """
-        for f in self.facts.values():
-            if isinstance(f, Recommendation):
-                return f["split_method"], f["schedule"]
-                
-        # REFACTORED: Log peringatan keras jika fallback terpicu
-        logger.warning("No specific rule matched! Falling back to default 'fullbody' schedule.")
-        return "fullbody", {"day_1": "fullbody"}
+        if self._result is None:
+            raise InvalidInputError("Rule engine belum dijalankan.")
+        return (
+            self._result.split_method,
+            {day: focus.value for day, focus in self._result.schedule.items()},
+        )

@@ -1,113 +1,108 @@
-# app/api/recommendation.py
-from typing import List, Dict
-from fastapi import APIRouter, HTTPException, status
-from math import pow
+"""Recommendation endpoints (thin HTTP layer)."""
 
-from app.schemas.recommendation import RecommendationRequest, RecommendationResponse, RecommendationDay
-from app.schemas.exercise import ExerciseOut
-from app.services.csv_loader import load_exercises
-from app.services.exercise_filter import build_daily_pool
-from app.services.genetic_optimizer import run_ga_schedule
-from app.rules.rule_engine import FitnessRuleEngine, UserInput   # ← UserInput = Fact
+from __future__ import annotations
 
-from fastapi import Body
-from app.schemas.recommendation import ByFocusRequest, ByFocusResponse
-from app.services.csv_loader import load_exercises
-from app.services.exercise_filter import build_daily_pool
-from app.services.genetic_optimizer import run_ga_schedule
+import asyncio
+import logging
 
-router = APIRouter()
+from fastapi import APIRouter, Depends
+from starlette.concurrency import run_in_threadpool
 
-def _bmi_category(b: float) -> str:
-    return ("Underweight" if b < 18.5 else
-            "Normal"      if b < 25   else
-            "Overweight"  if b < 30   else
-            "Obese I"     if b < 35   else
-            "Obese II"    if b < 40   else
-            "Obese III")
+from app.api.deps import get_recommender
+from app.core.errors import ServiceUnavailableError
+from app.core.security import require_api_key
+from app.domain.models import UserProfile
+from app.schemas.recommendation import (
+    ByFocusRequest,
+    ByFocusResponse,
+    ErrorResponse,
+    RecommendationRequest,
+    RecommendationResponse,
+)
+from app.services.recommender import Recommender
 
-@router.post("/", response_model=RecommendationResponse, status_code=status.HTTP_201_CREATED)
-def create_recommendation(req: RecommendationRequest):
-    # 1️⃣  Hitung BMI
-    bmi = round(req.weight_kg / pow(req.height_cm / 100, 2), 2)
-    bmi_cat = _bmi_category(bmi)
+logger = logging.getLogger(__name__)
 
-    # 2️⃣  Jalankan Rule‑Based Engine (versi notebook)
-    engine = FitnessRuleEngine()
-    engine.reset()
-    engine.declare(UserInput(
-        gender=req.gender,
-        bmi=bmi,
-        injuries=req.injuries,
-        available_days=req.available_days,
-        preferred_body_part=req.preferred_body_part,
-    ))
-    engine.run()
-    split_type, schedule = engine.get_result()   # schedule dict {day_1: 'upper', ...}
+router = APIRouter(dependencies=[Depends(require_api_key)])
 
-    # 3️⃣  Build exercise pool & GA
-    df = load_exercises()
-    daily_pool = build_daily_pool(
-        schedule=schedule,
-        df_all=df,
-        injuries=req.injuries,
-        preferred_equipment=req.preferred_equipment,
-    )
-    daywise = run_ga_schedule(
-        schedule,
-        daily_pool,
-        injured_body_parts=req.injuries,
-        preferred_body_parts=req.preferred_body_part,
-        bmi=bmi,
-    )
-    if not daywise:
-        raise HTTPException(404, "Unable to build workout plan")
 
-    # 4️⃣  Format response
-    days_out: List[RecommendationDay] = []
-    for i, (dk, info) in enumerate(daywise.items(), 1):
-        ex_out = [ExerciseOut.model_validate(e) for e in info["exercises"]]
-        days_out.append(RecommendationDay(day=i, day_focus=info["focus"], exercises=ex_out))
+async def _run_with_timeout(recommender: Recommender, func, *args, **kwargs):
+    timeout = recommender.settings.request_timeout_seconds
+    try:
+        return await asyncio.wait_for(
+            run_in_threadpool(func, *args, **kwargs),
+            timeout=timeout,
+        )
+    except asyncio.TimeoutError as exc:
+        logger.warning(
+            "recommendation_timeout",
+            extra={"timeout_seconds": timeout},
+        )
+        raise ServiceUnavailableError(
+            "Waktu komputasi rekomendasi habis. Coba lagi."
+        ) from exc
 
-    return RecommendationResponse(
-        bmi=bmi,
-        bmi_category=bmi_cat,
-        split_type=split_type,
-        schedule=schedule,
-        days=days_out,
-    )
-@router.post("/by-focus", response_model=ByFocusResponse, status_code=status.HTTP_201_CREATED)
-def recommend_by_focus(
-    req: ByFocusRequest = Body(...)
-):
-    bmi = req.bmi if req.bmi is not None else 0.0
 
-    schedule = {"day_1": req.day_focus.lower()}
-
-    df = load_exercises()
-
-    daily_pool = build_daily_pool(
-        schedule=schedule,
-        df_all=df,
-        injuries=req.injuries,
-        preferred_equipment=req.preferred_equipment,
+@router.post(
+    "/",
+    response_model=RecommendationResponse,
+    status_code=200,
+    summary="Buat rencana latihan mingguan",
+    responses={
+        401: {"model": ErrorResponse, "description": "API key tidak valid"},
+        422: {"model": ErrorResponse, "description": "Input atau constraint tidak valid"},
+        429: {"model": ErrorResponse, "description": "Rate limit terlampaui"},
+        503: {"model": ErrorResponse, "description": "Komputasi timeout"},
+    },
+)
+async def create_recommendation(
+    payload: RecommendationRequest,
+    recommender: Recommender = Depends(get_recommender),
+) -> RecommendationResponse:
+    profile = UserProfile(
+        gender=payload.gender,
+        height_cm=payload.height_cm,
+        weight_kg=payload.weight_kg,
+        injuries=tuple(payload.injuries),
+        available_days=payload.available_days,
+        preferred_body_part=tuple(payload.preferred_body_part),
+        preferred_equipment=tuple(payload.preferred_equipment),
+        seed=payload.seed,
     )
 
-    daywise = run_ga_schedule(
-        schedule,
-        daily_pool,
-        injured_body_parts=req.injuries,
-        preferred_body_parts=req.preferred_body_part,
-        bmi=bmi,
+    plan = await _run_with_timeout(recommender, recommender.recommend, profile)
+    return RecommendationResponse.from_plan(plan)
+
+
+@router.post(
+    "/by-focus",
+    response_model=ByFocusResponse,
+    status_code=200,
+    summary="Buat satu sesi latihan untuk fokus tertentu",
+    responses={
+        401: {"model": ErrorResponse, "description": "API key tidak valid"},
+        422: {"model": ErrorResponse, "description": "Input atau constraint tidak valid"},
+        429: {"model": ErrorResponse, "description": "Rate limit terlampaui"},
+        503: {"model": ErrorResponse, "description": "Komputasi timeout"},
+    },
+)
+async def recommend_by_focus(
+    payload: ByFocusRequest,
+    recommender: Recommender = Depends(get_recommender),
+) -> ByFocusResponse:
+    day, seed = await _run_with_timeout(
+        recommender,
+        recommender.recommend_day,
+        focus=payload.day_focus,
+        injuries=tuple(payload.injuries),
+        preferred_equipment=tuple(payload.preferred_equipment),
+        preferred_body_part=tuple(payload.preferred_body_part),
+        seed=payload.seed,
     )
 
-    if not daywise:
-        raise HTTPException(status_code=404, detail="Unable to build workout plan")
-
-    day_info = daywise.get("day_1")
-    exercises_out = [ExerciseOut.model_validate(e) for e in day_info["exercises"]] if day_info else []
-
-    return ByFocusResponse(
-        day_focus=req.day_focus,
-        exercises=exercises_out
+    return ByFocusResponse.from_day(
+        day,
+        seed=seed,
+        dataset_version=recommender.dataset.version,
+        algorithm_version=recommender.settings.app_version,
     )

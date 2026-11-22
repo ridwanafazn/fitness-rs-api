@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fitness-rs-api"
+version = "2.0.0"
+description = "Hybrid rule-based + genetic-algorithm fitness recommender API"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Ridwan Ahmad Fauzan" }]
+dependencies = [
+  "fastapi>=0.116,<1",
+  "uvicorn[standard]>=0.35,<1",
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.11,<3",
+  "pygad>=3.5,<4",
+  "numpy>=1.26,<3",
+  "slowapi>=0.1.10,<1",
+  "prometheus-fastapi-instrumentator>=7.1,<8",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4,<9",
+  "pytest-cov>=7.1,<8",
+  "httpx>=0.28,<1",
+  "ruff>=0.17,<1",
+  "mypy>=1.19,<2",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+  "unit: fast pure-domain tests",
+  "integration: API and dataset integration tests",
+  "slow: tests that take more than a second",
+  "performance: latency / load tests",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "C4", "PIE", "RET"]
+# The runtime still supports Python 3.9, so keep typing.List/Optional and
+# runtime-evaluated generics instead of the Python 3.10 union syntax.
+ignore = ["E501", "UP006", "UP035", "UP045", "B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "tests"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.9"
+mypy_path = "."
+explicit_package_bases = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+ignore_missing_imports = true
+files = ["app"]

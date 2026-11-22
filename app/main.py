@@ -1,104 +1,271 @@
-# app/main.py
+"""FastAPI application factory."""
 
-import time
+from __future__ import annotations
+
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from typing import AsyncIterator, Optional
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.v1.api import api_router
-
-# ────────────────────────────────────────────────────────────────
-# 1. KONFIGURASI LOGGING GLOBAL
-# ────────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+from app.core.config import Settings, get_settings
+from app.core.errors import (
+    AppError,
+    error_payload,
+    validation_details,
 )
+from app.core.logging import configure_logging
+from app.core.middleware import (
+    AccessLogMiddleware,
+    MaxBodySizeMiddleware,
+    RequestIDMiddleware,
+    SecurityHeadersMiddleware,
+)
+from app.services.dataset import clear_dataset_cache, get_dataset
+
 logger = logging.getLogger("fitness_api")
 
-# ────────────────────────────────────────────────────────────────
-# 2. LIFESPAN MANAGEMENT (STARTUP & SHUTDOWN)
-# ────────────────────────────────────────────────────────────────
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Logika yang berjalan sebelum API siap menerima request
-    logger.info("Fitness-RS Optimization Engine is starting up...")
-    # (Di masa depan, inisialisasi koneksi Database bisa ditaruh di sini)
-    
-    yield # API berjalan
-    
-    # Logika pembersihan saat server dimatikan (Ctrl+C)
-    logger.info("Fitness-RS API is shutting down gracefully...")
 
-# ────────────────────────────────────────────────────────────────
-# 3. INISIALISASI FASTAPI (DENGAN METADATA PROFESIONAL)
-# ────────────────────────────────────────────────────────────────
-app = FastAPI(
-    title="Fitness-RS Optimization Engine",
-    description="Hybrid AI Recommendation System merging Expert System (Experta) and Genetic Algorithm (PyGAD).",
-    version="1.0.0", # REFACTORED: Naik ke versi rilis 1.0.0
-    contact={
-        "name": "Ridwan Ahmad Fauzan",
-        "url": "https://github.com/ridwanafazn",
-    },
-    lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
-)
+def _client_key(request: Request) -> str:
+    settings: Settings = request.app.state.settings
+    if settings.trust_proxy_headers:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+    return get_remote_address(request)
 
-# ────────────────────────────────────────────────────────────────
-# 4. MIDDLEWARE & CORS
-# ────────────────────────────────────────────────────────────────
-@app.middleware("http")
-async def add_process_time_header(request: Request, call_next):
-    """
-    Middleware untuk mencatat berapa lama sebuah request diproses.
-    Sangat berguna untuk memantau performa Genetic Algorithm.
-    """
-    start_time = time.time()
-    response = await call_next(request)
-    process_time = time.time() - start_time
-    response.headers["X-Process-Time"] = f"{process_time:.4f} sec"
-    return response
 
-# CORS: Fully open (allow all origins).
-# CATATAN: allow_credentials HARUS False selama allow_origins=["*"].
-# Menggabungkan "*" dengan credentials=True itu invalid per spec dan
-# bikin browser menolak respons untuk fetch(credentials:'include').
-# Kalau nanti butuh cookie/auth lintas-origin, ganti ke:
-#   allow_origins=[], allow_origin_regex=".*", allow_credentials=True
-# (middleware akan me-mirror Origin asli, bukan "*").
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["X-Process-Time"],
-)
-
-# ────────────────────────────────────────────────────────────────
-# 5. GLOBAL EXCEPTION HANDLER
-# ────────────────────────────────────────────────────────────────
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """
-    Menangkap error 500 yang tidak terduga agar aplikasi tidak crash
-    dan tidak membocorkan stack trace mentah ke pengguna.
-    """
-    logger.error(f"Unhandled Exception on {request.method} {request.url}: {exc}", exc_info=True)
+def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", "-")
     return JSONResponse(
-        status_code=500,
-        content={"message": "Internal Server Error. Terjadi kendala saat memproses algoritma."},
+        status_code=429,
+        content=error_payload(
+            code="rate_limit_exceeded",
+            message="Terlalu banyak request. Coba lagi beberapa saat.",
+            request_id=request_id,
+            details={"limit": str(exc.detail)},
+        ),
+        headers={"Retry-After": "60"},
     )
 
-# ────────────────────────────────────────────────────────────────
-# 6. ROUTING
-# ────────────────────────────────────────────────────────────────
-app.include_router(api_router, prefix="/api/v1")
 
-@app.get("/health", tags=["infra"])
-def healthcheck():
-    return {"status": "ok", "version": "1.0.0", "engine": "Hybrid-AI Active"}
+def _register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(AppError)
+    async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+        request_id = getattr(request.state, "request_id", "-")
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=error_payload(
+                code=exc.code,
+                message=exc.message,
+                request_id=request_id,
+                details=exc.details,
+            ),
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        request_id = getattr(request.state, "request_id", "-")
+        return JSONResponse(
+            status_code=422,
+            content=error_payload(
+                code="validation_error",
+                message="Payload request tidak valid.",
+                request_id=request_id,
+                details=validation_details(exc.errors()),
+            ),
+        )
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(
+        request: Request, exc: HTTPException
+    ) -> JSONResponse:
+        request_id = getattr(request.state, "request_id", "-")
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=error_payload(
+                code="http_error",
+                message=str(exc.detail),
+                request_id=request_id,
+            ),
+            headers=exc.headers,
+        )
+
+    # Keep this handler synchronous: SlowAPI's default middleware uses the
+    # synchronous `sync_check_limits` path and ignores async handlers.
+    @app.exception_handler(RateLimitExceeded)
+    def rate_limit_exception_handler(
+        request: Request, exc: RateLimitExceeded
+    ) -> JSONResponse:
+        return _rate_limit_handler(request, exc)
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(
+        request: Request, exc: Exception
+    ) -> JSONResponse:
+        request_id = getattr(request.state, "request_id", "-")
+        logger.exception(
+            "unhandled_exception",
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+            },
+        )
+        return JSONResponse(
+            status_code=500,
+            content=error_payload(
+                code="internal_error",
+                message="Terjadi kesalahan internal. Silakan coba lagi.",
+                request_id=request_id,
+            ),
+        )
+
+
+def create_app(settings: Optional[Settings] = None) -> FastAPI:
+    """Create a configured FastAPI application.
+
+    ``settings`` is injectable so tests can use a temporary dataset without
+    mutating process-global environment variables.
+    """
+
+    app_settings = settings or get_settings()
+    configure_logging(app_settings.log_level, json_format=not app_settings.is_test)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        clear_dataset_cache()
+        dataset = get_dataset(app_settings.dataset_path)
+        app.state.dataset = dataset
+        logger.info(
+            "startup",
+            extra={
+                "environment": app_settings.environment,
+                "dataset_version": dataset.version,
+                "dataset_size": len(dataset.exercises),
+                "version": app_settings.app_version,
+            },
+        )
+        yield
+        logger.info("shutdown")
+
+    docs_enabled = app_settings.docs_enabled
+    app = FastAPI(
+        title=app_settings.app_name,
+        description=(
+            "Hybrid fitness recommender: deterministic rule table + genetic "
+            "algorithm, with hard injury constraints."
+        ),
+        version=app_settings.app_version,
+        contact={"name": "Ridwan Ahmad Fauzan", "url": "https://github.com/ridwanafazn"},
+        lifespan=lifespan,
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
+    )
+
+    app.state.settings = app_settings
+
+    # Rate limiting: default limits apply to every route.  Use a shared store
+    # (Redis) when running more than one instance.
+    limiter = Limiter(
+        key_func=_client_key,
+        default_limits=[app_settings.rate_limit] if app_settings.rate_limit_enabled else [],
+        storage_uri=app_settings.rate_limit_storage_uri,
+    )
+    app.state.limiter = limiter
+
+    # Starlette treats the last-added middleware as the outermost layer.
+    # Desired order (outermost -> innermost):
+    # CORS -> RequestID -> AccessLog -> rate limit -> body size -> gzip -> app.
+    app.add_middleware(GZipMiddleware, minimum_size=500)
+
+    if app_settings.allowed_host_list != ["*"]:
+        app.add_middleware(
+            TrustedHostMiddleware,
+            allowed_hosts=app_settings.allowed_host_list,
+        )
+
+    app.add_middleware(MaxBodySizeMiddleware, max_bytes=app_settings.max_request_bytes)
+
+    if app_settings.rate_limit_enabled:
+        app.add_middleware(SlowAPIMiddleware)
+
+    app.add_middleware(AccessLogMiddleware)
+    app.add_middleware(RequestIDMiddleware)
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        hsts=app_settings.is_production,
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=app_settings.cors_origin_list,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "X-API-Key", "X-Request-ID"],
+        expose_headers=["X-Process-Time", "X-Request-ID"],
+        max_age=600,
+    )
+
+    _register_exception_handlers(app)
+    app.include_router(api_router, prefix=app_settings.api_prefix)
+
+    @app.get("/", tags=["infra"], include_in_schema=False)
+    def root() -> dict:
+        return {
+            "name": app_settings.app_name,
+            "version": app_settings.app_version,
+            "docs": "/docs" if docs_enabled else None,
+            "health": "/health",
+            "ready": "/ready",
+        }
+
+    @app.get("/health", tags=["infra"])
+    def healthcheck() -> dict:
+        return {
+            "status": "ok",
+            "version": app_settings.app_version,
+            "environment": app_settings.environment,
+        }
+
+    @app.get("/ready", tags=["infra"])
+    def readiness(request: Request) -> JSONResponse:
+        dataset = getattr(request.app.state, "dataset", None)
+        if dataset is None:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "not_ready", "reason": "dataset_not_loaded"},
+            )
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "ready",
+                "dataset_version": dataset.version,
+                "dataset_size": len(dataset.exercises),
+            },
+        )
+
+    if app_settings.metrics_enabled:
+        Instrumentator().instrument(app).expose(
+            app,
+            endpoint="/metrics",
+            include_in_schema=False,
+        )
+
+    return app
+
+
+app = create_app()
