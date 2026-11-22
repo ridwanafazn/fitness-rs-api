@@ -214,6 +214,11 @@ Common codes:
 | `exercise_locked` | 409 | Swap attempted on a locked exercise |
 | `plan_invalid` | 422 | Invalid/safety-breaking plan |
 | `precondition_required` | 428 | Missing `expected_revision`/`If-Match` |
+| `workout_not_found` | 404 | Workout missing or not owned by caller |
+| `set_not_found` | 404 | Set missing/deleted |
+| `workout_invalid` | 422 | Invalid workout/substitution |
+| `workout_completed` | 409 | Workout already completed |
+| `set_conflict` | 409 | Set number already used |
 | `internal_error` | 500 | Unexpected server error |
 | `service_unavailable` | 503 | Computation timeout or auth provider unavailable |
 
@@ -242,6 +247,7 @@ All settings are environment variables (see `.env.example`):
 | `AUTH_DEV_MODE` | `false` | HS256 local/test only; rejected in production |
 | `AUTH_DEV_SECRET` | empty | Dev-only signing secret, min 32 chars |
 | `PLANS_ENABLED` | `false` | Mount P0.2 plan lifecycle endpoints |
+| `WORKOUTS_ENABLED` | `false` | Mount P0.3 workout/sync endpoints |
 | `CONSENT_POLICY_VERSION` | `2026-01` | Consent policy version |
 | `ACCOUNT_DELETION_GRACE_DAYS` | `30` | Hard-delete window (job future work) |
 | `RATE_LIMIT_ENABLED` | `true` | Enable the rate-limit middleware |
@@ -272,7 +278,9 @@ Production checklist:
    `AUTH_PROFILES_ENABLED=false` until Neon Auth and the frontend are ready.
 8. For P0.2, set `PLANS_ENABLED=true` only after bearer auth and the frontend
    `Idempotency-Key` handling are ready.
-9. Use an always-on host without cold starts; see [`docs/hosting.md`](docs/hosting.md).
+9. For P0.3, set `WORKOUTS_ENABLED=true` only after the frontend can queue
+   offline mutations.
+10. Use an always-on host without cold starts; see [`docs/hosting.md`](docs/hosting.md).
 
 ---
 
@@ -371,6 +379,35 @@ See [`docs/p0-2-plan-lifecycle.md`](docs/p0-2-plan-lifecycle.md).
 
 ---
 
+## Workouts (P0.3)
+
+Mounted only when `WORKOUTS_ENABLED=true`. Requires plans and bearer auth.
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/workouts/start` | Start from a plan day |
+| GET | `/api/v1/workouts` | History |
+| GET | `/api/v1/workouts/{id}` | Detail + sets |
+| PATCH | `/api/v1/workouts/{id}` | Notes |
+| POST | `/api/v1/workouts/{id}/complete` | Finish |
+| POST | `/api/v1/workouts/{id}/sets` | Log a set |
+| POST | `/api/v1/workouts/{id}/exercises/{exercise_id}/substitute` | Substitute |
+| PATCH/DELETE | `/api/v1/sets/{id}` | Edit/soft-delete set |
+| POST | `/api/v1/sync/batch` | Offline mutations |
+
+Rules:
+
+- `client_session_id`/`client_set_id` make retries idempotent.
+- Set numbers are unique per exercise; sets are soft-deleted.
+- Substitution respects injury and focus constraints.
+- Completed workouts reject edits.
+- Offline batches return per-item `applied`/`duplicate`/`error`.
+- Replaying the same batch never duplicates sets.
+
+See [`docs/p0-3-workout-execution.md`](docs/p0-3-workout-execution.md).
+
+---
+
 ## Quality gates
 
 ```bash
@@ -398,6 +435,8 @@ The test suite covers:
 - P0.2 plans: idempotency, import safety, owner isolation, immutable versions,
   lock/swap/regenerate, revision conflicts, share hashing/expiry/revoke,
   PDF/ICS, pagination
+- P0.3 workouts: start/session idempotency, set replay/conflict/totals,
+  completion, substitution safety, history, offline partial failure and replay
 - Alembic upgrade/downgrade on a fresh SQLite database
 
 CI runs the same gates on Python 3.11 and 3.12 and builds/smokes the Docker
@@ -416,9 +455,9 @@ app/
   domain/         pure rules, focus mapping, injury taxonomy, fitness
   rules/          compatibility facade for the old rule-engine API
   schemas/        Pydantic request/response models
-  services/       dataset loader, filter, GA, orchestration, identity, plans, audit
+  services/       dataset loader, filter, GA, orchestration, identity, plans, workouts, audit
 data/             222-row curated exercise dataset
-migrations/       Alembic environment, P0.1 identity, P0.2 plans
+migrations/       Alembic environment, P0.1 identity, P0.2 plans, P0.3 workouts
 tests/            unit, integration, and API tests
 docs/             algorithm, API, deployment, hosting, auth, audit, and product plans
 scripts/          benchmark helper and dev-token helper
@@ -440,6 +479,7 @@ Start with:
 - [`docs/data-model.md`](docs/data-model.md) — tables and invariants
 - [`docs/p0-1-identity-and-profiles.md`](docs/p0-1-identity-and-profiles.md) — implemented P0.1 contract
 - [`docs/p0-2-plan-lifecycle.md`](docs/p0-2-plan-lifecycle.md) — implemented P0.2 contract
+- [`docs/p0-3-workout-execution.md`](docs/p0-3-workout-execution.md) — implemented P0.3 contract
 - [`docs/neon-auth.md`](docs/neon-auth.md) — Neon Auth setup and JWT contract
 - [`docs/hosting.md`](docs/hosting.md) — always-on hosting without cold starts
 
@@ -472,8 +512,8 @@ Container/platform settings:
   CPU-bound
 - set `TRUST_PROXY_HEADERS=true`
 - set `CORS_ORIGINS` and `API_KEY` in the dashboard
-- for P0.1/P0.2: set `DATABASE_URL`, run `alembic upgrade head`, then enable
-  `AUTH_*`/`NEON_AUTH_BASE_URL` and `PLANS_ENABLED` when ready
+- for P0.1/P0.2/P0.3: set `DATABASE_URL`, run `alembic upgrade head`, then enable
+  `AUTH_*`/`NEON_AUTH_BASE_URL`, `PLANS_ENABLED`, and `WORKOUTS_ENABLED` when ready
 
 See [`docs/deployment.md`](docs/deployment.md) and
 [`docs/hosting.md`](docs/hosting.md) for details.

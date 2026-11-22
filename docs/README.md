@@ -5,6 +5,8 @@ This directory is the planning and implementation source of truth.
 - **P0.1** identity/profiles/consent is implemented behind
   `AUTH_PROFILES_ENABLED=false`.
 - **P0.2** plan lifecycle is implemented behind `PLANS_ENABLED=false`.
+- **P0.3** workout execution/offline sync is implemented behind
+  `WORKOUTS_ENABLED=false`.
 - Neon Auth is the selected identity provider; see `neon-auth.md`.
 
 The existing recommendation API remains unchanged and public.
@@ -19,6 +21,7 @@ The existing recommendation API remains unchanged and public.
 | [`data-model.md`](data-model.md) | Tables, relationships, invariants, migration order |
 | [`p0-1-identity-and-profiles.md`](p0-1-identity-and-profiles.md) | Implemented P0.1 contract |
 | [`p0-2-plan-lifecycle.md`](p0-2-plan-lifecycle.md) | Implemented P0.2 contract |
+| [`p0-3-workout-execution.md`](p0-3-workout-execution.md) | Implemented P0.3 contract |
 | [`neon-auth.md`](neon-auth.md) | Neon Auth setup and JWT contract |
 | [`hosting.md`](hosting.md) | Always-on cloud hosting without cold starts; free/PAYG options |
 | [`adr/0001-modular-monolith.md`](adr/0001-modular-monolith.md) | Why modular monolith + Postgres/Redis/object storage |
@@ -29,7 +32,7 @@ The existing recommendation API remains unchanged and public.
 
 - FastAPI `0.165`, Starlette `1.10`, Pydantic `2.14`, Python 3.11+
 - SQLAlchemy 2 + Alembic + psycopg 3 + PyJWT + ReportLab
-- 192 tests passing
+- 206 tests passing
 - Live API on Render, live frontend on Cloudflare Pages (`jymz.pages.dev`)
 - Existing endpoints remain compatible:
   - `POST /api/v1/recommendation/` (201)
@@ -52,15 +55,24 @@ The existing recommendation API remains unchanged and public.
   - `POST/DELETE /api/v1/plans/{id}/share`
   - `GET /api/v1/plans/{id}/export.pdf`, `export.ics`
   - `GET /api/v1/shared/{token}` (public, read-only)
+- P0.3 endpoints (`WORKOUTS_ENABLED=true`):
+  - `POST /api/v1/workouts/start`
+  - `GET /api/v1/workouts`, `GET /api/v1/workouts/{id}`
+  - `PATCH /api/v1/workouts/{id}`
+  - `POST /api/v1/workouts/{id}/complete`
+  - `POST /api/v1/workouts/{id}/sets`
+  - `POST /api/v1/workouts/{id}/exercises/{exercise_id}/substitute`
+  - `PATCH/DELETE /api/v1/sets/{id}`
+  - `POST /api/v1/sync/batch`
 
 ## Implementation status
 
 | Phase | Status |
 |---|---|
-| P0.1 Identity, profile, consent | Implemented behind feature flag; Neon Auth + production Postgres still need deployment config |
-| P0.2 Plan lifecycle | Implemented behind feature flag; needs frontend integration and production migration |
-| P0.3 Workout execution | Next |
-| P0.4 Feedback & safety | Planned |
+| P0.1 Identity, profile, consent | Implemented behind feature flag; Neon Auth + production Postgres configured on a dedicated Neon branch |
+| P0.2 Plan lifecycle | Implemented behind feature flag |
+| P0.3 Workout execution | Implemented behind feature flag |
+| P0.4 Feedback & safety | Next |
 | P1/P2 | Planned |
 
 ## Decision status

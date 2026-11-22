@@ -191,6 +191,9 @@ health data. Existing public recommendation still works without login.
 
 # P0.3 — Workout execution and offline sync
 
+**Status:** implemented behind `WORKOUTS_ENABLED=false`. See
+`p0-3-workout-execution.md` for the contract and tests.
+
 **Goal:** users can follow the plan in the gym.
 
 ### Scope
@@ -203,35 +206,40 @@ health data. Existing public recommendation still works without login.
 
 ### Data
 
-`workout_sessions`, `workout_exercises`, `set_logs`, `workout_notes`,
-`client_mutations`.
+`workout_sessions`, `workout_exercises`, `set_logs`, `client_mutations`.
+Notes live on the session/exercise/set rows.
 
 ### Endpoints
 
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `/api/v1/workouts/start` | start from a plan day |
+| GET | `/api/v1/workouts` | workout history |
 | GET | `/api/v1/workouts/{id}` | workout detail |
-| PATCH | `/api/v1/workouts/{id}` | update notes/status |
+| PATCH | `/api/v1/workouts/{id}` | update notes |
 | POST | `/api/v1/workouts/{id}/sets` | add set |
 | PATCH | `/api/v1/sets/{id}` | edit set |
-| DELETE | `/api/v1/sets/{id}` | delete set |
+| DELETE | `/api/v1/sets/{id}` | soft-delete set |
 | POST | `/api/v1/workouts/{id}/complete` | finish |
+| POST | `/api/v1/workouts/{id}/exercises/{exercise_id}/substitute` | substitute exercise |
 | POST | `/api/v1/sync/batch` | batch offline mutations |
 
 ### Rules
 
-- Client-generated UUIDs; server accepts retries idempotently.
-- `client_mutation_id` unique per user.
-- Timestamps are UTC; display in user timezone.
+- Client-generated session/set IDs; server accepts retries idempotently.
+- `client_mutation_id` unique per user; replay returns the stored result.
+- Timestamps are UTC; the session stores the IANA timezone for display.
 - A workout belongs to one user; no cross-user access.
 - Soft delete sets; preserve history.
 - Offline batch is all-or-nothing per item, with per-item results.
+- Substitution must respect injury and focus constraints.
+- Completed workouts reject set/substitution changes.
+- Mounted only when `WORKOUTS_ENABLED=true` (requires `PLANS_ENABLED=true`).
 
 ### Definition of done
 
 - Replaying the same batch 3× does not duplicate sets.
-- Workout completion updates progress aggregates.
+- Workout completion stores totals/duration.
 - Sync works with partial failures.
 - History is paginated and timezone-correct.
 

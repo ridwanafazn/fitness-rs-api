@@ -59,9 +59,9 @@ still intentionally left for future work.
 - CSV path resolved from the project root, not the process CWD.
 - Dead `csv_loader.py`, `dependencies.py`, and empty `app/models` removed.
 - `pyproject.toml` with Ruff, mypy, pytest, and coverage configuration.
-- 192 tests covering rules, injuries, focus, fitness, dataset, GA, API, P0.1
-  auth/profile/consent, P0.2 plan lifecycle, and SQLite migration
-  upgrade/downgrade.
+- 206 tests covering rules, injuries, focus, fitness, dataset, GA, API, P0.1
+  auth/profile/consent, P0.2 plan lifecycle, P0.3 workout execution, and SQLite
+  migration upgrade/downgrade.
 - GitHub Actions CI for Python 3.11/3.12 and Docker build.
 - Docker runs as a non-root user and has a health check.
 - Structured JSON logging and `/ready`.
@@ -96,6 +96,20 @@ still intentionally left for future work.
   exercise count, no duplicates.
 - Mounted only when `PLANS_ENABLED=true`.
 
+### P0.3 workout execution
+
+- SQLAlchemy models and Alembic migration for `workout_sessions`,
+  `workout_exercises`, `set_logs`, and `client_mutations`.
+- Start from a plan day/version; copy exercise snapshots and injury context.
+- Client-generated session/set IDs; set numbers unique per exercise; soft delete.
+- Set logging with reps, weight, RPE, completion, notes.
+- Completion stores duration and totals; post-completion edits are rejected.
+- Exercise substitution with injury and focus safety.
+- Workout history with cursor pagination and owner isolation.
+- Offline batch sync with per-item savepoints and idempotent replay.
+- Audit metadata excludes notes and PII.
+- Mounted only when `WORKOUTS_ENABLED=true`.
+
 
 ### Dependencies
 
@@ -129,8 +143,9 @@ still intentionally left for future work.
 - Rate limiting is IP-based globally; per-user limits are future work.
 - P0.2 PDF/ICS export is synchronous in-process; move to a worker/object storage
   if it grows.
-- Trainer access, workout logs, and feedback are not implemented yet
-  (P1.2/P0.3/P0.4).
+- P0.3 has no server-side rest timer or progress charts; those are client-side /
+  P1.1.
+- Trainer access and feedback are not implemented yet (P1.2/P0.4).
 - Share links are plan-wide, not per-version; no public discovery/social layer.
 - `/metrics` should be protected in a public deployment.
 - A shared Redis store is required for rate limiting across multiple instances.

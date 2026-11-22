@@ -226,28 +226,40 @@ Rules:
 
 ```text
 workout_sessions
-  id, owner_user_id, plan_id, plan_version_id, status,
-  started_at, completed_at, notes, created_at, updated_at
+  id, owner_user_id, plan_id, plan_version_id, plan_day_id,
+  day_number, title, focus, status, timezone, injuries jsonb,
+  started_at, completed_at, notes, client_session_id,
+  total_sets, total_reps, total_volume_kg, exercise_count,
+  duration_seconds, created_at, updated_at, deleted_at
 
 workout_exercises
-  id, workout_session_id, plan_exercise_id, exercise_id,
-  position, notes
+  id, workout_session_id, source_plan_exercise_id,
+  exercise_id, exercise_name, body_part, equipment jsonb,
+  primary_muscle jsonb, secondary_muscle jsonb, image_url,
+  position, notes, substituted_from_exercise_id, created_at
 
 set_logs
-  id, workout_exercise_id, set_number, reps, weight_kg, rpe,
-  completed, client_set_id, created_at, updated_at, deleted_at
+  id, workout_exercise_id, owner_user_id, set_number,
+  reps, weight_kg, rpe, completed, notes, client_set_id,
+  created_at, updated_at, deleted_at
 
 client_mutations
-  id, owner_user_id, client_mutation_id, entity_type,
-  entity_id, payload jsonb, applied_at, created_at
+  id, owner_user_id, client_mutation_id, mutation_type,
+  result jsonb, occurred_at, applied_at, created_at
 ```
 
 Rules:
 
-- `client_mutation_id` unique per user for idempotent offline sync.
-- `client_set_id` unique per workout exercise.
-- Timestamps UTC; display in profile timezone.
-- Workout history is soft-deleted, not destroyed.
+- `client_session_id` is unique per user when present.
+- `client_set_id` is unique per user when present.
+- `(workout_exercise_id, set_number)` is unique among non-deleted sets.
+- Timestamps UTC; the session stores the user's IANA timezone for display.
+- Sets are soft-deleted; workout history is retained.
+- `plan_id`/`plan_version_id`/`plan_day_id` use `SET NULL` so history survives
+  plan cleanup.
+- `injuries` is a snapshot copied at start for substitution safety.
+- `client_mutations` stores the applied result; replay returns it without
+  applying the mutation again.
 
 ---
 
@@ -321,8 +333,9 @@ Rules:
 
 Steps 1–7 are implemented in `migrations/versions/0001_identity_profiles.py`.
 The P0.2 plan tables are implemented in
-`migrations/versions/0002_plans.py`. Each migration must be reversible where
-practical, and tested against a fresh database. Both migrations are tested on
+`migrations/versions/0002_plans.py`. The P0.3 workout tables are implemented in
+`migrations/versions/0003_workouts.py`. Each migration must be reversible where
+practical, and tested against a fresh database. All migrations are tested on
 SQLite (upgrade + downgrade); the Postgres runbook is in `hosting.md`.
 
 ---

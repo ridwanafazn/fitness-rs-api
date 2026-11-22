@@ -438,3 +438,218 @@ class PlanShare(Base):
     )
 
     plan: Mapped[Plan] = relationship(back_populates="shares")
+
+class WorkoutSession(Base):
+    __tablename__ = "workout_sessions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('in_progress', 'completed', 'abandoned')",
+            name="ck_workout_sessions_status",
+        ),
+        Index(
+            "ix_workout_sessions_owner_started",
+            "owner_user_id",
+            "started_at",
+        ),
+        Index(
+            "uq_workout_sessions_owner_client",
+            "owner_user_id",
+            "client_session_id",
+            unique=True,
+            postgresql_where=text("client_session_id IS NOT NULL"),
+            sqlite_where=text("client_session_id IS NOT NULL"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    plan_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("plans.id", ondelete="SET NULL"),
+    )
+    plan_version_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("plan_versions.id", ondelete="SET NULL"),
+    )
+    plan_day_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("plan_days.id", ondelete="SET NULL"),
+    )
+    day_number: Mapped[Optional[int]] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    focus: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(16), default="in_progress", nullable=False
+    )
+    timezone: Mapped[str] = mapped_column(String(64), default="UTC", nullable=False)
+    injuries: Mapped[List[str]] = mapped_column(json_type(), default=list, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    client_session_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid)
+    total_sets: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_reps: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_volume_kg: Mapped[float] = mapped_column(
+        Numeric(10, 2), default=0, nullable=False
+    )
+    exercise_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    duration_seconds: Mapped[Optional[int]] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    exercises: Mapped[List[WorkoutExercise]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="WorkoutExercise.position",
+    )
+
+
+class WorkoutExercise(Base):
+    __tablename__ = "workout_exercises"
+    __table_args__ = (
+        UniqueConstraint(
+            "workout_session_id",
+            "position",
+            name="uq_workout_exercises_session_position",
+        ),
+        Index("ix_workout_exercises_session", "workout_session_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    workout_session_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("workout_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_plan_exercise_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("plan_exercises.id", ondelete="SET NULL"),
+    )
+    exercise_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    exercise_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    body_part: Mapped[str] = mapped_column(String(32), nullable=False)
+    equipment: Mapped[List[str]] = mapped_column(json_type(), nullable=False)
+    primary_muscle: Mapped[List[str]] = mapped_column(json_type(), nullable=False)
+    secondary_muscle: Mapped[List[str]] = mapped_column(
+        json_type(), default=list, nullable=False
+    )
+    image_url: Mapped[Optional[str]] = mapped_column(Text)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    substituted_from_exercise_id: Mapped[Optional[str]] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+    session: Mapped[WorkoutSession] = relationship(back_populates="exercises")
+    sets: Mapped[List[SetLog]] = relationship(
+        back_populates="exercise",
+        cascade="all, delete-orphan",
+        order_by="SetLog.set_number",
+    )
+
+
+class SetLog(Base):
+    __tablename__ = "set_logs"
+    __table_args__ = (
+        Index(
+            "uq_set_logs_owner_client",
+            "owner_user_id",
+            "client_set_id",
+            unique=True,
+            postgresql_where=text("client_set_id IS NOT NULL"),
+            sqlite_where=text("client_set_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_set_logs_exercise_set",
+            "workout_exercise_id",
+            "set_number",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+            sqlite_where=text("deleted_at IS NULL"),
+        ),
+        Index("ix_set_logs_workout_exercise", "workout_exercise_id"),
+        CheckConstraint("set_number >= 1", name="ck_set_logs_set_number"),
+        CheckConstraint(
+            "reps IS NULL OR reps >= 0",
+            name="ck_set_logs_reps",
+        ),
+        CheckConstraint(
+            "weight_kg IS NULL OR weight_kg >= 0",
+            name="ck_set_logs_weight",
+        ),
+        CheckConstraint(
+            "rpe IS NULL OR (rpe >= 1 AND rpe <= 10)",
+            name="ck_set_logs_rpe",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    workout_exercise_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("workout_exercises.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    set_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    reps: Mapped[Optional[int]] = mapped_column(Integer)
+    weight_kg: Mapped[Optional[float]] = mapped_column(Numeric(7, 2))
+    rpe: Mapped[Optional[float]] = mapped_column(Numeric(3, 1))
+    completed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    client_set_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    exercise: Mapped[WorkoutExercise] = relationship(back_populates="sets")
+
+
+class ClientMutation(Base):
+    __tablename__ = "client_mutations"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_user_id",
+            "client_mutation_id",
+            name="uq_client_mutations_owner_client",
+        ),
+        Index("ix_client_mutations_owner", "owner_user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    client_mutation_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    mutation_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    result: Mapped[Dict[str, Any]] = mapped_column(
+        json_type(), default=dict, nullable=False
+    )
+    occurred_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    applied_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )

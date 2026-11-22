@@ -132,6 +132,31 @@ class InvalidCursorError(InvalidInputError):
     message = "Cursor pagination tidak valid."
 
 
+class WorkoutNotFoundError(NotFoundError):
+    code = "workout_not_found"
+    message = "Workout tidak ditemukan."
+
+
+class SetNotFoundError(NotFoundError):
+    code = "set_not_found"
+    message = "Set tidak ditemukan."
+
+
+class WorkoutValidationError(InvalidInputError):
+    code = "workout_invalid"
+    message = "Data workout tidak valid."
+
+
+class WorkoutCompletedError(ConflictError):
+    code = "workout_completed"
+    message = "Workout sudah selesai dan tidak bisa diubah."
+
+
+class SetConflictError(ConflictError):
+    code = "set_conflict"
+    message = "Nomor set sudah dipakai untuk exercise ini."
+
+
 class ProfileValidationError(InvalidInputError):
     code = "validation_error"
     message = "Data profil tidak valid."

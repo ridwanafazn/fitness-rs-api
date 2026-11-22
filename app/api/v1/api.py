@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api import me, plans, recommendation
+from app.api import me, plans, recommendation, workouts
 from app.core.config import Settings
 
 
@@ -39,6 +39,23 @@ def build_api_router(settings: Settings) -> APIRouter:
             plans.public_router,
             prefix="/shared",
             tags=["shared"],
+        )
+
+    if settings.workouts_enabled:
+        router.include_router(
+            workouts.router,
+            prefix="/workouts",
+            tags=["workouts"],
+        )
+        router.include_router(
+            workouts.sets_router,
+            prefix="/sets",
+            tags=["workouts"],
+        )
+        router.include_router(
+            workouts.sync_router,
+            prefix="/sync",
+            tags=["workouts"],
         )
 
     return router

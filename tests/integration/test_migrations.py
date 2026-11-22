@@ -38,6 +38,10 @@ def test_alembic_upgrade_and_downgrade_on_sqlite(tmp_path: Path) -> None:
             "plan_days",
             "plan_exercises",
             "plan_shares",
+            "workout_sessions",
+            "workout_exercises",
+            "set_logs",
+            "client_mutations",
         } <= tables
 
         user_columns = {column["name"] for column in inspector.get_columns("users")}
@@ -45,6 +49,17 @@ def test_alembic_upgrade_and_downgrade_on_sqlite(tmp_path: Path) -> None:
 
         plan_columns = {column["name"] for column in inspector.get_columns("plans")}
         assert {"owner_user_id", "current_version", "revision", "idempotency_key"} <= plan_columns
+
+        workout_columns = {
+            column["name"] for column in inspector.get_columns("workout_sessions")
+        }
+        assert {
+            "owner_user_id",
+            "plan_id",
+            "status",
+            "total_sets",
+            "client_session_id",
+        } <= workout_columns
 
         role_indexes = {index["name"] for index in inspector.get_indexes("user_roles")}
         assert "uq_user_roles_user_role_platform" in role_indexes
@@ -60,5 +75,7 @@ def test_alembic_upgrade_and_downgrade_on_sqlite(tmp_path: Path) -> None:
         assert "audit_log" not in tables
         assert "plans" not in tables
         assert "plan_shares" not in tables
+        assert "workout_sessions" not in tables
+        assert "set_logs" not in tables
     finally:
         engine.dispose()

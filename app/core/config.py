@@ -80,6 +80,9 @@ class Settings(BaseSettings):
     # P0.2 plan lifecycle. Requires P0.1 auth/profile endpoints and a database.
     plans_enabled: bool = False
 
+    # P0.3 workout execution. Requires P0.2 plans and a database.
+    workouts_enabled: bool = False
+
     # Rate limiting.  memory:// is fine for a single instance; use a Redis URI
     # when running more than one worker/instance.
     rate_limit_enabled: bool = True
@@ -262,6 +265,12 @@ class Settings(BaseSettings):
                 raise ValueError("PLANS_ENABLED membutuhkan AUTH_PROFILES_ENABLED=true")
             if self.is_production and not self.database_url:
                 raise ValueError("DATABASE_URL wajib di production saat plan aktif")
+
+        if self.workouts_enabled:
+            if not self.plans_enabled:
+                raise ValueError("WORKOUTS_ENABLED membutuhkan PLANS_ENABLED=true")
+            if self.is_production and not self.database_url:
+                raise ValueError("DATABASE_URL wajib di production saat workout aktif")
 
         return self
 

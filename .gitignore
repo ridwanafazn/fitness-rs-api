@@ -167,3 +167,13 @@ __marimo__/
 *.db
 *.db-journal
 *.sqlite3
+
+# Local environment files
+.env.local
+.env.*.local
+.env.*
+!.env.example
+.neon
+
+# Neon CLI context
+.neon

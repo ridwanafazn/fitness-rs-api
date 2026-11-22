@@ -45,6 +45,11 @@ P0.2 plans:
   `Idempotency-Key` handling are ready.
 - `PLANS_ENABLED` requires `AUTH_PROFILES_ENABLED=true` and a database.
 
+P0.3 workouts:
+
+- `WORKOUTS_ENABLED=true` only after the frontend can queue offline mutations.
+- `WORKOUTS_ENABLED` requires `PLANS_ENABLED=true` and a database.
+
 See [`neon-auth.md`](neon-auth.md) for the Neon Auth token contract.
 
 Run the migration before shifting traffic:

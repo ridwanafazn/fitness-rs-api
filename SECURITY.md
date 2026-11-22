@@ -53,6 +53,9 @@ maintainer privately (GitHub: `@ridwanafazn`) with:
 - Share tokens are stored only as SHA-256 hashes and expire; public share
   responses exclude owner identity and injury input.
 - PDF/ICS exports are owner-only and audited.
+- P0.3 workouts store set logs, notes, and an injury snapshot. Workout access is
+  owner-scoped; set/session client IDs are unique per owner.
+- Audit metadata excludes workout notes and injury terms.
 - Do not add new categories of health data without reviewing consent, retention,
   and access controls.
 

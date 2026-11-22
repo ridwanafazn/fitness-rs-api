@@ -111,6 +111,27 @@ Authorization: Bearer <token>
 `PATCH /plans/{id}` requires `expected_revision` in the body or
 `If-Match: "<revision>"`.
 
+## P0.3 workout endpoints
+
+Mounted only when `WORKOUTS_ENABLED=true`. Full contract:
+[`p0-3-workout-execution.md`](p0-3-workout-execution.md).
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/workouts/start` | Start from a plan day |
+| GET | `/api/v1/workouts` | History (`limit`, `cursor`, `status`) |
+| GET | `/api/v1/workouts/{id}` | Detail with exercises/sets |
+| PATCH | `/api/v1/workouts/{id}` | Update notes |
+| POST | `/api/v1/workouts/{id}/complete` | Finish workout |
+| POST | `/api/v1/workouts/{id}/sets` | Add a set |
+| POST | `/api/v1/workouts/{id}/exercises/{exercise_id}/substitute` | Substitute |
+| PATCH | `/api/v1/sets/{id}` | Update a set |
+| DELETE | `/api/v1/sets/{id}` | Soft-delete a set (`204`) |
+| POST | `/api/v1/sync/batch` | Apply offline mutations |
+
+`client_session_id` and `client_set_id` provide retry idempotency.
+`POST /sync/batch` returns `applied`, `duplicate`, or `error` per mutation.
+
 ## Response envelope
 
 Success uses the endpoint-specific schema. Every response includes:
