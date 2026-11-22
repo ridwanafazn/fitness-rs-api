@@ -9,6 +9,7 @@ This directory is the planning and implementation source of truth.
   `WORKOUTS_ENABLED=false`.
 - **P0.4** feedback/safety/admin triage is implemented behind
   `FEEDBACK_ENABLED=false`.
+- **P1.1** progress/insights is implemented behind `PROGRESS_ENABLED=false`.
 - Neon Auth is the selected identity provider; see `neon-auth.md`.
 
 The existing recommendation API remains unchanged and public.
@@ -25,6 +26,7 @@ The existing recommendation API remains unchanged and public.
 | [`p0-2-plan-lifecycle.md`](p0-2-plan-lifecycle.md) | Implemented P0.2 contract |
 | [`p0-3-workout-execution.md`](p0-3-workout-execution.md) | Implemented P0.3 contract |
 | [`p0-4-feedback-and-safety.md`](p0-4-feedback-and-safety.md) | Implemented P0.4 contract |
+| [`p1-1-progress-and-insights.md`](p1-1-progress-and-insights.md) | Implemented P1.1 contract |
 | [`neon-auth.md`](neon-auth.md) | Neon Auth setup and JWT contract |
 | [`provisioned-resources.md`](provisioned-resources.md) | Neon project/Auth IDs, migration head, local env loading |
 | [`hosting.md`](hosting.md) | Always-on cloud hosting without cold starts; free/PAYG options |
@@ -36,7 +38,7 @@ The existing recommendation API remains unchanged and public.
 
 - FastAPI `0.165`, Starlette `1.10`, Pydantic `2.14`, Python 3.11+
 - SQLAlchemy 2 + Alembic + psycopg 3 + PyJWT + ReportLab
-- 219 tests passing
+- 227 tests passing
 - Live API on Render, live frontend on Cloudflare Pages (`jymz.pages.dev`)
 - Existing endpoints remain compatible:
   - `POST /api/v1/recommendation/` (201)
@@ -76,6 +78,10 @@ The existing recommendation API remains unchanged and public.
   - `GET /api/v1/admin/feedback`
   - `GET /api/v1/admin/audit`
   - `GET /api/v1/admin/quality-summary`
+- P1.1 endpoints (`PROGRESS_ENABLED=true`):
+  - `GET /api/v1/me/progress`
+  - `GET /api/v1/me/history`
+  - `GET /api/v1/me/insights`
 
 ## Implementation status
 
@@ -84,8 +90,11 @@ The existing recommendation API remains unchanged and public.
 | P0.1 Identity, profile, consent | Implemented behind feature flag; Neon Auth + production Postgres configured on a dedicated Neon branch |
 | P0.2 Plan lifecycle | Implemented behind feature flag |
 | P0.3 Workout execution | Implemented behind feature flag |
-| P0.4 Feedback & safety | Implemented behind feature flag; needs frontend and admin seeding |
-| P1/P2 | Planned |
+| P0.4 Feedback & safety | Implemented behind feature flag |
+| P1.1 Progress & insights | Implemented behind feature flag; needs frontend charts |
+| P1.2 Trainer workspace | Next |
+| P1.3 Notifications | Planned |
+| P2 | Planned |
 
 ## Decision status
 

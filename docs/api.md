@@ -150,6 +150,20 @@ Mounted only when `FEEDBACK_ENABLED=true`. Full contract:
 Admin endpoints require the `platform_admin` role. Feedback and safety
 submissions are rate-limited per user per hour.
 
+## P1.1 progress endpoints
+
+Mounted only when `PROGRESS_ENABLED=true`. Full contract:
+[`p1-1-progress-and-insights.md`](p1-1-progress-and-insights.md).
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/me/progress` | Daily metrics + totals + streak |
+| GET | `/api/v1/me/history` | Completed workout history |
+| GET | `/api/v1/me/insights` | Streak, weekly review, body-part balance, PRs |
+
+`/me/progress` accepts `from_date`, `to_date`, and `timezone`; defaults to the
+last 30 days. `timezone` is IANA, e.g. `Asia/Jakarta`.
+
 ## Response envelope
 
 Success uses the endpoint-specific schema. Every response includes:

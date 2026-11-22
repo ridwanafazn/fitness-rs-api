@@ -188,6 +188,11 @@ class RateLimitExceededError(AppError):
     message = "Terlalu banyak request. Coba lagi nanti."
 
 
+class ProgressValidationError(InvalidInputError):
+    code = "progress_invalid"
+    message = "Rentang progress tidak valid."
+
+
 class ProfileValidationError(InvalidInputError):
     code = "validation_error"
     message = "Data profil tidak valid."

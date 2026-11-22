@@ -62,6 +62,8 @@ maintainer privately (GitHub: `@ridwanafazn`) with:
 - Platform-admin access is role-checked and audit-logged.
 - Critical-report webhooks contain only report id, exercise id, severity, and
   status.
+- P1.1 progress tables store aggregated workout metrics and personal records;
+  access is owner-scoped.
 - Audit metadata excludes workout notes and injury terms.
 - Do not add new categories of health data without reviewing consent, retention,
   and access controls.

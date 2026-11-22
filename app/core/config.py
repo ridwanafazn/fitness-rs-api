@@ -89,6 +89,9 @@ class Settings(BaseSettings):
     safety_report_rate_limit_per_hour: int = Field(default=10, ge=1, le=1000)
     alert_webhook_url: Optional[str] = None
 
+    # P1.1 progress aggregates and insights. Requires P0.3 workouts.
+    progress_enabled: bool = False
+
     # Rate limiting.  memory:// is fine for a single instance; use a Redis URI
     # when running more than one worker/instance.
     rate_limit_enabled: bool = True
@@ -283,6 +286,12 @@ class Settings(BaseSettings):
                 raise ValueError("FEEDBACK_ENABLED membutuhkan AUTH_PROFILES_ENABLED=true")
             if self.is_production and not self.database_url:
                 raise ValueError("DATABASE_URL wajib di production saat feedback aktif")
+
+        if self.progress_enabled:
+            if not self.workouts_enabled:
+                raise ValueError("PROGRESS_ENABLED membutuhkan WORKOUTS_ENABLED=true")
+            if self.is_production and not self.database_url:
+                raise ValueError("DATABASE_URL wajib di production saat progress aktif")
 
         return self
 

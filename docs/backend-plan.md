@@ -298,8 +298,11 @@ Notes live on the session/exercise/set rows.
 
 # P1.1 — Progress and insights
 
+**Status:** implemented behind `PROGRESS_ENABLED=false`. See
+`p1-1-progress-and-insights.md` for the contract and tests.
+
 - `daily_metrics`, `personal_records`, `weekly_reviews`.
-- Daily/weekly aggregation job.
+- Rebuild-on-read for consistency; `scripts/rebuild_progress.py` for backfill.
 - `GET /me/progress`, `/me/history`, `/me/insights`.
 - Timezone-aware; backfillable.
 - Dashboard reads from aggregates, not raw set logs.

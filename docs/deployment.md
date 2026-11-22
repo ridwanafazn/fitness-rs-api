@@ -59,6 +59,13 @@ P0.4 feedback/safety:
   payload.
 - Seed `platform_admin` manually; see `p0-4-feedback-and-safety.md`.
 
+P1.1 progress:
+
+- `PROGRESS_ENABLED=true` after workouts are live.
+- Requires `WORKOUTS_ENABLED=true` and a database.
+- Rebuild-on-read keeps aggregates consistent; `scripts/rebuild_progress.py`
+  supports backfill.
+
 See [`neon-auth.md`](neon-auth.md) for the Neon Auth token contract.
 
 Run the migration before shifting traffic:

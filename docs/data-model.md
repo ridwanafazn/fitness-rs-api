@@ -291,11 +291,43 @@ Rules:
 
 ---
 
+## P1.1 progress tables
+
+```text
+daily_metrics
+  id, owner_user_id, metric_date, timezone,
+  workouts_completed, total_sets, total_reps, total_volume_kg,
+  duration_seconds, sets_by_body_part jsonb, volume_by_body_part jsonb,
+  created_at, updated_at
+
+personal_records
+  id, owner_user_id, exercise_id, exercise_name, record_type,
+  value, reps, weight_kg, achieved_at, set_log_id, created_at, updated_at
+
+weekly_reviews
+  id, owner_user_id, week_start, timezone,
+  workouts_completed, total_sets, total_reps, total_volume_kg,
+  duration_seconds, sets_by_body_part jsonb, volume_by_body_part jsonb,
+  summary, created_at, updated_at
+```
+
+Rules:
+
+- `daily_metrics` unique per `(owner_user_id, metric_date)`.
+- `weekly_reviews` unique per `(owner_user_id, week_start)`; weeks start Monday.
+- `personal_records` unique per `(owner_user_id, exercise_id, record_type)`;
+  record types are `max_weight`, `max_reps`, `max_volume`.
+- Only completed workouts and non-deleted, completed sets count.
+- Rebuild-on-read replaces the requested daily/week ranges and all-time PRs, so
+  deleted sets/workouts cannot leave stale totals.
+- Local dates use the requested/profile timezone.
+
+---
+
 ## P1/P2 tables (summary)
 
 | Phase | Tables |
 |---|---|
-| P1.1 | `daily_metrics`, `personal_records`, `weekly_reviews` |
 | P1.2 | `trainer_profiles`, `trainer_clients`, `invitations`, `access_grants`, `plan_reviews`, `comments` |
 | P1.3 | `notification_preferences`, `devices`, `integration_tokens`, `outbox` |
 | P2.1 | `organizations`, `memberships`, `subscriptions`, `entitlements`, `invoices`, `api_clients` |
@@ -335,16 +367,18 @@ Rules:
 9. `workout_sessions` → `workout_exercises` → `set_logs` →
    `client_mutations`
 10. `feedback` → `unsafe_reports`
-11. P1/P2 tables
+11. `daily_metrics` → `personal_records` → `weekly_reviews`
+12. P1/P2 tables
 
 Steps 1–7 are implemented in `migrations/versions/0001_identity_profiles.py`.
 The P0.2 plan tables are implemented in
 `migrations/versions/0002_plans.py`. The P0.3 workout tables are implemented in
 `migrations/versions/0003_workouts.py`. The P0.4 feedback/safety tables are
-implemented in `migrations/versions/0004_feedback.py`. Each migration must be
-reversible where practical, and tested against a fresh database. All migrations
-are tested on SQLite (upgrade + downgrade); the Postgres runbook is in
-`hosting.md`.
+implemented in `migrations/versions/0004_feedback.py`. The P1.1 progress tables
+are implemented in `migrations/versions/0005_progress.py`. Each migration must
+be reversible where practical, and tested against a fresh database. All
+migrations are tested on SQLite (upgrade + downgrade); the Postgres runbook is
+in `hosting.md`.
 
 ---
 

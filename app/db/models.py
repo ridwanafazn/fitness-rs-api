@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (
@@ -11,6 +11,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -744,6 +745,129 @@ class UnsafeReport(Base):
     )
     triaged_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+class DailyMetric(Base):
+    __tablename__ = "daily_metrics"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_user_id",
+            "metric_date",
+            name="uq_daily_metrics_owner_date",
+        ),
+        Index("ix_daily_metrics_owner_date", "owner_user_id", "metric_date"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    metric_date: Mapped[date] = mapped_column(Date, nullable=False)
+    timezone: Mapped[str] = mapped_column(String(64), nullable=False)
+    workouts_completed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_sets: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_reps: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_volume_kg: Mapped[float] = mapped_column(
+        Numeric(12, 2), default=0, nullable=False
+    )
+    duration_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sets_by_body_part: Mapped[Dict[str, int]] = mapped_column(
+        json_type(), default=dict, nullable=False
+    )
+    volume_by_body_part: Mapped[Dict[str, float]] = mapped_column(
+        json_type(), default=dict, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+
+class PersonalRecord(Base):
+    __tablename__ = "personal_records"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_user_id",
+            "exercise_id",
+            "record_type",
+            name="uq_personal_records_owner_exercise_type",
+        ),
+        Index("ix_personal_records_owner", "owner_user_id"),
+        CheckConstraint(
+            "record_type IN ('max_weight', 'max_reps', 'max_volume')",
+            name="ck_personal_records_type",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    exercise_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    exercise_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    record_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    value: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    reps: Mapped[Optional[int]] = mapped_column(Integer)
+    weight_kg: Mapped[Optional[float]] = mapped_column(Numeric(7, 2))
+    achieved_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    set_log_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("set_logs.id", ondelete="SET NULL"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+
+class WeeklyReview(Base):
+    __tablename__ = "weekly_reviews"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_user_id",
+            "week_start",
+            name="uq_weekly_reviews_owner_week",
+        ),
+        Index("ix_weekly_reviews_owner_week", "owner_user_id", "week_start"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    week_start: Mapped[date] = mapped_column(Date, nullable=False)
+    timezone: Mapped[str] = mapped_column(String(64), nullable=False)
+    workouts_completed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_sets: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_reps: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_volume_kg: Mapped[float] = mapped_column(
+        Numeric(12, 2), default=0, nullable=False
+    )
+    duration_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sets_by_body_part: Mapped[Dict[str, int]] = mapped_column(
+        json_type(), default=dict, nullable=False
+    )
+    volume_by_body_part: Mapped[Dict[str, float]] = mapped_column(
+        json_type(), default=dict, nullable=False
+    )
+    summary: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )

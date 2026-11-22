@@ -33,11 +33,11 @@ Total: **10 phases**.
 
 ### P1 — Retensi & kepercayaan
 
-| Phase | Name | What is finished | Release |
-|---|---|---|---|
-| P1.1 | Progress & insights | Adherence, streak, volume, PRs, weekly review | R2 |
-| P1.2 | Trainer workspace | Invite client, review plan, comments, consent-based access | R3 |
-| P1.3 | Notifications & integrations | Reminders, calendar, email/push/WhatsApp, health integrations | R3 |
+| Phase | Name | What is finished | Release | Status |
+|---|---|---|---|---|
+| P1.1 | Progress & insights | Adherence, streak, volume, PRs, weekly review | R2 | Backend done; FE pending |
+| P1.2 | Trainer workspace | Invite client, review plan, comments, consent-based access | R3 | Planned |
+| P1.3 | Notifications & integrations | Reminders, calendar, email/push/WhatsApp, health integrations | R3 | Planned |
 
 ### P2 — Skala & bisnis
 

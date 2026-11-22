@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api import feedback, me, plans, recommendation, workouts
+from app.api import feedback, me, plans, progress, recommendation, workouts
 from app.core.config import Settings
 
 
@@ -73,6 +73,13 @@ def build_api_router(settings: Settings) -> APIRouter:
             feedback.admin_router,
             prefix="/admin",
             tags=["admin"],
+        )
+
+    if settings.progress_enabled:
+        router.include_router(
+            progress.router,
+            prefix="/me",
+            tags=["progress"],
         )
 
     return router
