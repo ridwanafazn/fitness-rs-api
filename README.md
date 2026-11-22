@@ -236,6 +236,12 @@ Common codes:
 | `integration_state_invalid` | 403 | OAuth state invalid/expired |
 | `integration_unsupported` | 422 | Provider unsupported |
 | `integration_exchange_failed` | 502 | OAuth code exchange failed |
+| `organization_not_found` | 404 | Organization/member missing or caller not a member |
+| `organization_access_denied` | 403 | Organization role insufficient |
+| `organization_invitation_not_found` | 404 | Invitation missing, used, or expired |
+| `organization_invitation_conflict` | 409 | Duplicate invitation or already a member |
+| `organization_conflict` | 409 | Last-owner or archived-organization rule |
+| `organization_invalid` | 422 | Invalid organization payload |
 | `internal_error` | 500 | Unexpected server error |
 | `service_unavailable` | 503 | Computation timeout or auth provider unavailable |
 
@@ -277,6 +283,7 @@ All settings are environment variables (see `.env.example`):
 | `TOKEN_ENCRYPTION_KEY` | empty | Fernet key for device/integration tokens |
 | `INTEGRATION_STATE_SECRET` | empty | HMAC secret for OAuth state/unsubscribe |
 | `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` / `STRAVA_REDIRECT_URI` | empty | Optional Strava OAuth |
+| `ORGANIZATIONS_ENABLED` | `false` | Mount P2.1 free organizations endpoints |
 | `CONSENT_POLICY_VERSION` | `2026-01` | Consent policy version |
 | `ACCOUNT_DELETION_GRACE_DAYS` | `30` | Hard-delete window (job future work) |
 | `RATE_LIMIT_ENABLED` | `true` | Enable the rate-limit middleware |
@@ -314,7 +321,9 @@ Production checklist:
 12. For P1.2, set `TRAINER_ENABLED=true` and seed the `trainer` role manually.
 13. For P1.3, set `NOTIFICATIONS_ENABLED=true`, a Fernet
    `TOKEN_ENCRYPTION_KEY`, and run `scripts/process_outbox.py` as a worker.
-14. Use an always-on host without cold starts; see [`docs/hosting.md`](docs/hosting.md).
+14. For P2.1, set `ORGANIZATIONS_ENABLED=true`. There is no billing/payment
+    configuration by design.
+15. Use an always-on host without cold starts; see [`docs/hosting.md`](docs/hosting.md).
 
 ---
 
@@ -560,6 +569,38 @@ See [`docs/p1-3-notifications-and-integrations.md`](docs/p1-3-notifications-and-
 
 ---
 
+## Organizations and collaboration (P2.1, free)
+
+Mounted only when `ORGANIZATIONS_ENABLED=true`. There is **no billing,
+payment, subscription, seat, or entitlement** in this project.
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/orgs` | Create organization |
+| GET | `/api/v1/me/orgs` | List my organizations |
+| GET/PATCH | `/api/v1/orgs/{id}` | Detail/update |
+| GET | `/api/v1/orgs/{id}/summary` | Aggregate summary |
+| GET | `/api/v1/orgs/{id}/members` | List members |
+| PATCH/DELETE | `/api/v1/orgs/{id}/members/{user_id}` | Change role/remove |
+| POST | `/api/v1/orgs/{id}/leave` | Leave |
+| GET/POST | `/api/v1/orgs/{id}/invitations` | List/create invitations |
+| POST | `/api/v1/org-invitations/{token}/accept` | Accept |
+| POST | `/api/v1/org-invitations/{token}/decline` | Decline |
+
+Rules:
+
+- Roles: `owner`, `admin`, `trainer`, `member`.
+- At least one owner must remain; only an owner can transfer ownership.
+- Invitations are hashed, expire after 14 days, and are shown once.
+- Non-members get `404`; insufficient org role gets `403`.
+- Organization membership never grants access to plans, workouts, feedback, or
+  injuries. Trainer access still uses P1.2 scopes.
+- The admin summary is counts only, never health data.
+
+See [`docs/p2-1-organizations.md`](docs/p2-1-organizations.md).
+
+---
+
 ## Quality gates
 
 ```bash
@@ -597,6 +638,8 @@ The test suite covers:
   cross-trainer isolation, comments/reviews, revocation, PII-free audit
 - P1.3 notifications: preferences, device encryption, outbox retry, reminders,
   calendar public/private, unsubscribe, Strava OAuth, unsupported providers
+- P2.1 organizations: roles, invitations, expiry/replay, last-owner protection,
+  cross-org isolation, aggregate summary, PII-free audit
 - Alembic upgrade/downgrade on a fresh SQLite database
 
 CI runs the same gates on Python 3.11 and 3.12 and builds/smokes the Docker
@@ -615,9 +658,9 @@ app/
   domain/         pure rules, focus mapping, injury taxonomy, fitness
   rules/          compatibility facade for the old rule-engine API
   schemas/        Pydantic request/response models
-  services/       dataset loader, filter, GA, orchestration, identity, plans, workouts, feedback, progress, trainer, notifications, integrations, audit
+  services/       dataset loader, filter, GA, orchestration, identity, plans, workouts, feedback, progress, trainer, notifications, integrations, organizations, audit
 data/             222-row curated exercise dataset
-migrations/       Alembic environment, P0.1 identity, P0.2 plans, P0.3 workouts, P0.4 feedback, P1.1 progress, P1.2 trainer, P1.3 notifications
+migrations/       Alembic environment, P0.1 identity, P0.2 plans, P0.3 workouts, P0.4 feedback, P1.1 progress, P1.2 trainer, P1.3 notifications, P2.1 organizations
 tests/            unit, integration, and API tests
 docs/             algorithm, API, deployment, hosting, auth, audit, and product plans
 scripts/          benchmark, dev-token, progress-rebuild, and outbox helpers
@@ -644,6 +687,7 @@ Start with:
 - [`docs/p1-1-progress-and-insights.md`](docs/p1-1-progress-and-insights.md) — implemented P1.1 contract
 - [`docs/p1-2-trainer-workspace.md`](docs/p1-2-trainer-workspace.md) — implemented P1.2 contract
 - [`docs/p1-3-notifications-and-integrations.md`](docs/p1-3-notifications-and-integrations.md) — implemented P1.3 contract
+- [`docs/p2-1-organizations.md`](docs/p2-1-organizations.md) — implemented P2.1 free organization contract
 - [`docs/neon-auth.md`](docs/neon-auth.md) — Neon Auth setup and JWT contract
 - [`docs/hosting.md`](docs/hosting.md) — always-on hosting without cold starts
 
@@ -676,10 +720,10 @@ Container/platform settings:
   CPU-bound
 - set `TRUST_PROXY_HEADERS=true`
 - set `CORS_ORIGINS` and `API_KEY` in the dashboard
-- for P0.1–P1.3: set `DATABASE_URL`, run `alembic upgrade head`, then enable
+- for P0.1–P2.1: set `DATABASE_URL`, run `alembic upgrade head`, then enable
   `AUTH_*`/`NEON_AUTH_BASE_URL`, `PLANS_ENABLED`, `WORKOUTS_ENABLED`,
-  `FEEDBACK_ENABLED`, `PROGRESS_ENABLED`, `TRAINER_ENABLED`, and
-  `NOTIFICATIONS_ENABLED` when ready
+  `FEEDBACK_ENABLED`, `PROGRESS_ENABLED`, `TRAINER_ENABLED`,
+  `NOTIFICATIONS_ENABLED`, and `ORGANIZATIONS_ENABLED` when ready
 
 See [`docs/deployment.md`](docs/deployment.md) and
 [`docs/hosting.md`](docs/hosting.md) for details.

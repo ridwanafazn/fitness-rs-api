@@ -43,7 +43,7 @@ Total: **10 phases**.
 
 | Phase | Name | What is finished | Release |
 |---|---|---|---|
-| P2.1 | Organizations, billing | Gym/org, seats, roles, subscription, entitlements | R4 |
+| P2.1 | Organizations (free) | Gym/org, memberships, invitations, org roles | R4 | Backend done; no billing by design |
 | P2.2 | Experimentation & quality | Event tracking, A/B, quality dashboard, research export | R4 |
 | P2.3 | Scale & reliability | Redis, workers, caching, SLO, tracing, backups, DR | R5 |
 
@@ -54,7 +54,7 @@ Total: **10 phases**.
 | **R1** | P0.1 + P0.2 + P0.4 | Product can be used, saved, shared, and reported |
 | **R2** | P0.3 + P1.1 | Real workout loop + progress |
 | **R3** | P1.2 + P1.3 | Trainer trust + reminders |
-| **R4** | P2.1 + P2.2 | Gym/B2B + learning loop |
+| **R4** | P2.1 + P2.2 | Free org collaboration + learning loop |
 | **R5** | P2.3 | Scale, reliability, and operational maturity |
 
 Do not start R4 before there are real users. Do not start R5 before load or

@@ -13,6 +13,8 @@ This directory is the planning and implementation source of truth.
 - **P1.2** trainer workspace is implemented behind `TRAINER_ENABLED=false`.
 - **P1.3** notifications/calendar/integrations is implemented behind
   `NOTIFICATIONS_ENABLED=false`.
+- **P2.1** free organizations/memberships is implemented behind
+  `ORGANIZATIONS_ENABLED=false` (no billing/payments).
 - Neon Auth is the selected identity provider; see `neon-auth.md`.
 
 The existing recommendation API remains unchanged and public.
@@ -32,6 +34,7 @@ The existing recommendation API remains unchanged and public.
 | [`p1-1-progress-and-insights.md`](p1-1-progress-and-insights.md) | Implemented P1.1 contract |
 | [`p1-2-trainer-workspace.md`](p1-2-trainer-workspace.md) | Implemented P1.2 contract |
 | [`p1-3-notifications-and-integrations.md`](p1-3-notifications-and-integrations.md) | Implemented P1.3 contract |
+| [`p2-1-organizations.md`](p2-1-organizations.md) | Implemented P2.1 free organization contract |
 | [`neon-auth.md`](neon-auth.md) | Neon Auth setup and JWT contract |
 | [`provisioned-resources.md`](provisioned-resources.md) | Neon project/Auth IDs, migration head, local env loading |
 | [`hosting.md`](hosting.md) | Always-on cloud hosting without cold starts; free/PAYG options |
@@ -43,7 +46,7 @@ The existing recommendation API remains unchanged and public.
 
 - FastAPI `0.165`, Starlette `1.10`, Pydantic `2.14`, Python 3.11+
 - SQLAlchemy 2 + Alembic + psycopg 3 + PyJWT + ReportLab
-- 252 tests passing
+- 266 tests passing
 - Live API on Render, live frontend on Cloudflare Pages (`jymz.pages.dev`)
 - Existing endpoints remain compatible:
   - `POST /api/v1/recommendation/` (201)
@@ -108,6 +111,15 @@ The existing recommendation API remains unchanged and public.
   - `GET/DELETE /api/v1/me/integrations`
   - `POST /api/v1/me/integrations/{provider}/authorize`
   - `POST /api/v1/integrations/{provider}/callback`
+- P2.1 endpoints (`ORGANIZATIONS_ENABLED=true`):
+  - `POST /api/v1/orgs`, `GET /api/v1/me/orgs`
+  - `GET/PATCH /api/v1/orgs/{id}`
+  - `GET /api/v1/orgs/{id}/summary`
+  - `GET /api/v1/orgs/{id}/members`
+  - `PATCH/DELETE /api/v1/orgs/{id}/members/{user_id}`
+  - `POST /api/v1/orgs/{id}/leave`
+  - `GET/POST /api/v1/orgs/{id}/invitations`
+  - `POST /api/v1/org-invitations/{token}/accept`, `/decline`
 
 ## Implementation status
 
@@ -120,7 +132,8 @@ The existing recommendation API remains unchanged and public.
 | P1.1 Progress & insights | Implemented behind feature flag; needs frontend charts |
 | P1.2 Trainer workspace | Implemented behind feature flag; needs frontend UI + manual trainer role |
 | P1.3 Notifications & integrations | Implemented behind feature flag; log/webhook delivery + Strava only |
-| P2 | Next |
+| P2.1 Organizations (free) | Implemented behind feature flag; no billing/payments, aggregate-only admin summary |
+| P2.2 Experimentation & quality | Next |
 
 ## Decision status
 
@@ -131,7 +144,8 @@ The existing recommendation API remains unchanged and public.
 | Redis for rate limiting/cache/queues | Accepted later; not required for P0.1/P0.2 |
 | Neon Auth as identity provider | Accepted and backend-integrated |
 | OIDC auth with local-first guest mode | Accepted and implemented |
-| Roles vs entitlements separation | Accepted |
+| Roles vs ownership separation | Accepted |
+| No billing/payments; free hobby/research project | Accepted |
 | No microservices/Kubernetes now | Accepted |
 | No LLM chatbot as core feature | Accepted |
 | Always-on hosting instead of sleeping free tiers | Accepted; see `hosting.md` |
@@ -144,4 +158,5 @@ The existing recommendation API remains unchanged and public.
 4. Use `p0-1-identity-and-profiles.md` and `p0-2-plan-lifecycle.md` for the
    implemented contracts.
 5. Read `neon-auth.md` before enabling login.
-6. Read `hosting.md` before choosing a production host.
+6. Read `p2-1-organizations.md` before enabling organizations.
+7. Read `hosting.md` before choosing a production host.

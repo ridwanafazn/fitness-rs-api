@@ -15,7 +15,7 @@ committed.
 | Postgres | 18 |
 | Default branch | `main` (`br-plain-union-b34jhwqt`) |
 | Database | `neondb` |
-| Migration head | `0007_notifications` |
+| Migration head | `0008_organizations` |
 
 ## Neon Auth
 
@@ -67,6 +67,7 @@ FEEDBACK_ENABLED=true
 PROGRESS_ENABLED=true
 TRAINER_ENABLED=true
 NOTIFICATIONS_ENABLED=true
+ORGANIZATIONS_ENABLED=true
 AUTH_ALGORITHMS=EdDSA
 ```
 
@@ -76,8 +77,8 @@ AUTH_ALGORITHMS=EdDSA
 2. Set `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `AUTH_ENABLED=true`,
    `AUTH_PROFILES_ENABLED=true`, `PLANS_ENABLED=true`, `WORKOUTS_ENABLED=true`,
    `FEEDBACK_ENABLED=true`, `PROGRESS_ENABLED=true`, `TRAINER_ENABLED=true`,
-   `NOTIFICATIONS_ENABLED=true`.
-3. `alembic upgrade head` (already at `0007_notifications` on the current branch).
+   `NOTIFICATIONS_ENABLED=true`, `ORGANIZATIONS_ENABLED=true`.
+3. `alembic upgrade head` (already at `0008_organizations` on the current branch).
 4. Verify `/ready` returns `database: ok`.
 5. Sign in through Neon Auth and confirm `GET /api/v1/me`.
 6. Test plan create/export and workout start/sync.

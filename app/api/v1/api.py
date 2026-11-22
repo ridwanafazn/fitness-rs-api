@@ -13,6 +13,7 @@ from app.api import (
     feedback,
     me,
     notifications,
+    organizations,
     plans,
     progress,
     recommendation,
@@ -112,6 +113,23 @@ def build_api_router(settings: Settings) -> APIRouter:
         router.include_router(
             notifications.public_router,
             tags=["notifications"],
+        )
+
+    if settings.organizations_enabled:
+        router.include_router(
+            organizations.router,
+            prefix="/orgs",
+            tags=["organizations"],
+        )
+        router.include_router(
+            organizations.me_router,
+            prefix="/me",
+            tags=["organizations"],
+        )
+        router.include_router(
+            organizations.invitation_router,
+            prefix="/org-invitations",
+            tags=["organizations"],
         )
 
     return router

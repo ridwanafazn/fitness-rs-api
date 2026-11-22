@@ -215,6 +215,30 @@ Delivery modes are `log`, `webhook`, or `disabled`. Run
 `python scripts/process_outbox.py` to enqueue due reminders and process the
 outbox.
 
+## P2.1 organization endpoints (free)
+
+Mounted only when `ORGANIZATIONS_ENABLED=true`. Full contract:
+[`p2-1-organizations.md`](p2-1-organizations.md). There is no billing or
+payment API.
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/api/v1/orgs` | user | Create organization |
+| GET | `/api/v1/me/orgs` | user | List my organizations |
+| GET/PATCH | `/api/v1/orgs/{org_id}` | member / owner-admin | Detail/update |
+| GET | `/api/v1/orgs/{org_id}/summary` | owner/admin | Counts only |
+| GET | `/api/v1/orgs/{org_id}/members` | member | List members |
+| PATCH | `/api/v1/orgs/{org_id}/members/{user_id}` | owner/admin | Change role |
+| DELETE | `/api/v1/orgs/{org_id}/members/{user_id}` | owner/admin | Remove member |
+| POST | `/api/v1/orgs/{org_id}/leave` | member | Leave |
+| GET/POST | `/api/v1/orgs/{org_id}/invitations` | owner/admin | List/create invitations |
+| POST | `/api/v1/org-invitations/{token}/accept` | user | Accept invitation |
+| POST | `/api/v1/org-invitations/{token}/decline` | user | Decline invitation |
+
+Organization membership is separate from health-data access. Non-members
+receive `404`; members without the required role receive `403
+organization_access_denied`.
+
 ## Response envelope
 
 Success uses the endpoint-specific schema. Every response includes:

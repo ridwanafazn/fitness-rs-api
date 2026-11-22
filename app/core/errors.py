@@ -260,6 +260,36 @@ class IntegrationExchangeError(AppError):
     message = "Pertukaran token integrasi gagal."
 
 
+class OrganizationNotFoundError(NotFoundError):
+    code = "organization_not_found"
+    message = "Organisasi tidak ditemukan."
+
+
+class OrganizationAccessDeniedError(ForbiddenError):
+    code = "organization_access_denied"
+    message = "Akses organisasi tidak diizinkan."
+
+
+class OrganizationInvitationNotFoundError(NotFoundError):
+    code = "organization_invitation_not_found"
+    message = "Undangan organisasi tidak ditemukan atau kedaluwarsa."
+
+
+class OrganizationInvitationConflictError(ConflictError):
+    code = "organization_invitation_conflict"
+    message = "Undangan organisasi tidak bisa diproses."
+
+
+class OrganizationConflictError(ConflictError):
+    code = "organization_conflict"
+    message = "Terjadi konflik pada organisasi."
+
+
+class OrganizationValidationError(InvalidInputError):
+    code = "organization_invalid"
+    message = "Data organisasi tidak valid."
+
+
 class ProfileValidationError(InvalidInputError):
     code = "validation_error"
     message = "Data profil tidak valid."

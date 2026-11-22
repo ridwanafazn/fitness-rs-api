@@ -404,11 +404,41 @@ Rules:
 
 ---
 
-## P2 tables (summary)
+## P2.1 organization tables (free, no billing)
+
+```text
+organizations
+  id, name, slug (unique), type, description, website, timezone,
+  branding jsonb, status, created_by, created_at, updated_at
+
+organization_memberships
+  id, organization_id, user_id, role, status,
+  created_at, updated_at, revoked_at
+
+organization_invitations
+  id, organization_id, email, role, token_hash (unique), status,
+  invited_by, expires_at, accepted_at, declined_at,
+  created_at, updated_at
+```
+
+Rules:
+
+- Membership is unique per `(organization_id, user_id)`.
+- Roles are `owner`, `admin`, `trainer`, `member`; invitations cannot grant
+  `owner`.
+- At least one active owner must remain.
+- Invitation tokens are hashed, expire after 14 days, and are shown once.
+- Organization membership never grants access to health rows. Trainer access
+  still requires a P1.2 relationship + scope grant.
+- No billing, subscription, entitlement, invoice, or seat tables exist by
+  design.
+
+---
+
+## P2.2/P2.3 tables (summary)
 
 | Phase | Tables |
 |---|---|
-| P2.1 | `organizations`, `memberships`, `subscriptions`, `entitlements`, `invoices`, `api_clients` |
 | P2.2 | `events`, `experiments`, `assignments`, `quality_reviews` |
 | P2.3 | no new domain tables; operational infrastructure |
 
@@ -421,8 +451,8 @@ Rules:
 3. Injuries cannot be stored without active health-data consent.
 4. `platform_admin` cannot be granted through the public API.
 5. A trainer can access a client only through an active `access_grant`.
-6. Org-owned rows always carry `org_id`; user-owned rows always carry
-   `owner_user_id`.
+6. Health rows remain user-owned; organization membership and org `org_id`
+   columns never grant health-data access on their own.
 7. A share token never includes user id, email, injury data, or notes.
 8. A workout set is unique per `(user_id, client_mutation_id)`.
 9. Audit rows are append-only.
@@ -452,7 +482,9 @@ Rules:
     `access_grants` → `plan_reviews` → `trainer_comments`
 13. `notification_preferences` → `devices` → `notification_outbox` →
     `integration_tokens`
-14. P2 tables
+14. `organizations` → `organization_memberships` →
+    `organization_invitations`
+15. P2.2 tables
 
 Steps 1–7 are implemented in `migrations/versions/0001_identity_profiles.py`.
 The P0.2 plan tables are implemented in
@@ -462,9 +494,11 @@ implemented in `migrations/versions/0004_feedback.py`. The P1.1 progress tables
 are implemented in `migrations/versions/0005_progress.py`. The P1.2 trainer
 tables are implemented in `migrations/versions/0006_trainer.py`. The P1.3
 notification tables are implemented in
-`migrations/versions/0007_notifications.py`. Each migration must be reversible
-where practical, and tested against a fresh database. All migrations are tested
-on SQLite (upgrade + downgrade); the Postgres runbook is in `hosting.md`.
+`migrations/versions/0007_notifications.py`. The P2.1 organization tables are
+implemented in `migrations/versions/0008_organizations.py`. Each migration must
+be reversible where practical, and tested against a fresh database. All
+migrations are tested on SQLite (upgrade + downgrade); the Postgres runbook is
+in `hosting.md`.
 
 ---
 

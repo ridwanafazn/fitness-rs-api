@@ -82,6 +82,14 @@ P1.3 notifications:
 - `INTEGRATION_STATE_SECRET` signs OAuth state and unsubscribe tokens.
 - Run `python scripts/process_outbox.py` as a worker.
 
+P2.1 organizations (free):
+
+- `ORGANIZATIONS_ENABLED=true` to mount organization/membership endpoints.
+- Requires `AUTH_PROFILES_ENABLED=true`.
+- No billing/payment/seat configuration exists by design.
+- Organization membership does not grant health-data access; P1.2 scopes still
+  apply.
+
 See [`neon-auth.md`](neon-auth.md) for the Neon Auth token contract.
 
 Run the migration before shifting traffic:

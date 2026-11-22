@@ -330,13 +330,17 @@ Notes live on the session/exercise/set rows.
 - Outbox + retry + idempotency; `scripts/process_outbox.py` worker.
 - Unsubscribe and quiet hours.
 
-# P2.1 — Organizations and billing
+# P2.1 — Free organizations and collaboration
 
-- `organizations`, `memberships`, `subscriptions`, `entitlements`, `invoices`.
-- `org_id` on every tenant-owned table.
-- Seats, roles, branding, Stripe webhooks (idempotent).
-- Role vs entitlement separation.
-- Cross-tenant isolation tests.
+**Status:** implemented behind `ORGANIZATIONS_ENABLED=false`. See
+`p2-1-organizations.md` for the contract and tests. Billing and payments are
+intentionally removed; this is a free hobby/research project.
+
+- `organizations`, `organization_memberships`, `organization_invitations`.
+- Owner/admin/trainer/member roles, slug, timezone, branding, archive status.
+- Hashed expiring invitations, accept/decline, role changes, removal, leave.
+- Aggregate-only admin summary; no health-data access from org membership.
+- Cross-organization isolation tests.
 
 # P2.2 — Experimentation and quality
 

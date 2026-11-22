@@ -59,10 +59,10 @@ still intentionally left for future work.
 - CSV path resolved from the project root, not the process CWD.
 - Dead `csv_loader.py`, `dependencies.py`, and empty `app/models` removed.
 - `pyproject.toml` with Ruff, mypy, pytest, and coverage configuration.
-- 252 tests covering rules, injuries, focus, fitness, dataset, GA, API, P0.1
+- 266 tests covering rules, injuries, focus, fitness, dataset, GA, API, P0.1
   auth/profile/consent, P0.2 plan lifecycle, P0.3 workout execution, P0.4
   feedback/safety, P1.1 progress, P1.2 trainer workspace, P1.3 notifications,
-  and SQLite migration upgrade/downgrade.
+  P2.1 free organizations, and SQLite migration upgrade/downgrade.
 - GitHub Actions CI for Python 3.11/3.12 and Docker build.
 - Docker runs as a non-root user and has a health check.
 - Structured JSON logging and `/ready`.
@@ -160,6 +160,17 @@ still intentionally left for future work.
 - Strava OAuth connect/disconnect; Google Fit/Apple Health explicitly unsupported.
 - Mounted only when `NOTIFICATIONS_ENABLED=true`.
 
+### P2.1 free organizations
+
+- SQLAlchemy models and Alembic migration for organizations, memberships, and
+  invitations.
+- Owner/admin/trainer/member roles with last-owner protection.
+- Hashed, expiring, one-time invitation tokens; accept/decline/revoke/leave.
+- Organization detail, member listing, and aggregate-only admin summary.
+- Cross-organization isolation and PII-free audit.
+- No billing, payment, subscription, seat, or entitlement code by design.
+- Mounted only when `ORGANIZATIONS_ENABLED=true`.
+
 
 ### Dependencies
 
@@ -185,9 +196,9 @@ still intentionally left for future work.
 - Dataset is 222 exercises; hamstrings and neck are underrepresented.
 - Fitness weights are inherited from the thesis and are not clinically tuned.
 - No multi-expert validation, user study, or ablation in this engineering pass.
-- P0.1/P0.2 are implemented, but no live Neon Auth branch or production
-  database is configured in the repository; the frontend login/onboarding/plan
-  screens are not built yet.
+- P0.1–P2.1 backend is implemented and Neon Auth/Postgres are provisioned, but
+  the frontend login/onboarding/plan screens are not built yet and the live
+  Render deployment remains flag-off.
 - Account deletion currently records a request; the hard-delete retention job
   is future work.
 - Rate limiting is IP-based globally; per-user limits are future work.
@@ -200,11 +211,13 @@ still intentionally left for future work.
 - Critical alerts are best-effort webhooks, not guaranteed delivery.
 - P1.1 rebuild-on-read is not a long-term analytics pipeline; a scheduled job
   can call the same service later.
-- P1.2 invite delivery is manual until P1.3 notifications; trainer role is
-  seeded manually.
+- P1.2 invite delivery is manual; trainer role is seeded manually.
 - P1.3 delivery is log/webhook by default; real email/SMS/push adapters and
   Google Fit/Apple Health OAuth are future work.
 - Outbox assumes a single worker; multi-worker locking is future work.
+- P2.1 has no billing/payments by design. Trainer/client assignment is not yet
+  organization-scoped, so the P1.2 client list and the org summary span all
+  organizations a trainer belongs to. The summary is aggregate-only.
 - Share links are plan-wide, not per-version; no public discovery/social layer.
 - `/metrics` should be protected in a public deployment.
 - A shared Redis store is required for rate limiting across multiple instances.

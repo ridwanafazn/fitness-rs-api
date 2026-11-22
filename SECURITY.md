@@ -70,6 +70,10 @@ maintainer privately (GitHub: `@ridwanafazn`) with:
 - P1.3 device/integration tokens are encrypted with `TOKEN_ENCRYPTION_KEY`;
   raw tokens are never returned by the API. Outbox payloads contain no device
   tokens. OAuth state and unsubscribe links are HMAC-signed.
+- P2.1 organization invitation tokens are hashed, expire after 14 days, and are
+  shown once. Organization membership does not grant health-data access; trainer
+  reads still require a P1.2 relationship and scope grant. Non-members receive
+  `404` to avoid disclosing organization existence.
 - Audit metadata excludes workout notes and injury terms.
 - Do not add new categories of health data without reviewing consent, retention,
   and access controls.

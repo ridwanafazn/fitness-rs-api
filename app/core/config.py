@@ -105,6 +105,9 @@ class Settings(BaseSettings):
     strava_client_secret: Optional[str] = None
     strava_redirect_uri: Optional[str] = None
 
+    # P2.1 free organizations/collaboration (no billing, no payments).
+    organizations_enabled: bool = False
+
     # Rate limiting.  memory:// is fine for a single instance; use a Redis URI
     # when running more than one worker/instance.
     rate_limit_enabled: bool = True
@@ -323,6 +326,16 @@ class Settings(BaseSettings):
             ):
                 raise ValueError(
                     "NOTIFICATION_WEBHOOK_URL wajib saat mode webhook"
+                )
+
+        if self.organizations_enabled:
+            if not self.auth_profiles_enabled:
+                raise ValueError(
+                    "ORGANIZATIONS_ENABLED membutuhkan AUTH_PROFILES_ENABLED=true"
+                )
+            if self.is_production and not self.database_url:
+                raise ValueError(
+                    "DATABASE_URL wajib di production saat organizations aktif"
                 )
 
         return self

@@ -92,21 +92,25 @@ relationship-scoped, not role-wide.
 
 ### Gym / Organization Admin
 
-A customer-side administrator for a gym or coaching business. Added in P2.1.
+A customer-side administrator for a gym, studio, coach, or research group.
+Implemented in P2.1 as organization roles (`owner`, `admin`). There is no
+billing or seat management in this free project.
 
 **Can:**
-- Manage organization profile and branding.
-- Invite/remove trainers.
-- Manage seats and billing.
-- View aggregate usage and adherence.
-- Configure organization-level equipment profiles.
+- Manage organization profile, slug, timezone, and branding.
+- Invite/remove members and change non-owner roles.
+- View aggregate member/trainer/client/plan counts.
+- Leave or transfer ownership (with last-owner protection).
 
 **Cannot (by default):**
 - Read individual health data or injury notes.
-- Read a member's private plans unless the member explicitly shares them.
+- Read a member's private plans unless the member explicitly shares them or
+  grants a P1.2 trainer scope.
+- Grant the platform-level `platform_admin` or `trainer` role through the
+  organization API.
 
-**Why:** the buyer is the gym, but the health data belongs to the member.
-Billing/admin access must not imply clinical access.
+**Why:** organization membership is an administrative boundary, not a
+health-data consent. Trainer access remains relationship- and scope-scoped.
 
 ---
 
@@ -154,11 +158,11 @@ These are different concepts:
 | Concept | Question | Example |
 |---|---|---|
 | **Role** | Who are you? | member, trainer, org_admin, platform_admin |
-| **Entitlement** | What feature did you buy? | free, pro, gym_10, api_pilot |
+| **Entitlement** | What feature is enabled? | free, pro, gym_10 (not implemented; no billing in this project) |
 | **Ownership** | Whose data is this? | self, client, organization |
 
 Never encode `is_premium` inside a role. Never rely only on a JWT claim for
-authorization. Check ownership and entitlement in the database/service layer.
+authorization. Check ownership and feature flags in the database/service layer.
 
 ---
 
@@ -275,10 +279,13 @@ Use permissions in code, roles as bundles. This makes later roles cheaper to add
 
 ## Multi-tenancy rules
 
-- Every tenant-owned table has `org_id`.
-- Every user-owned table has `owner_user_id`.
+- Organization tables carry `organization_id`; they are the only tenant-scoped
+  domain tables in P2.1.
+- Health rows stay user-owned (`owner_user_id`); organization membership alone
+  never grants access.
 - Repositories always filter by the current principal.
 - Trainer/client access uses an explicit `trainer_clients`/`access_grants` row.
+- Non-members receive `404` for organization resources.
 - Admin break-glass access requires a reason and writes an audit record.
 - Add integration tests that attempt cross-user and cross-org reads.
 
