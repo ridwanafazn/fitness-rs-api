@@ -23,6 +23,7 @@ The existing recommendation API remains unchanged and public.
 | [`p0-2-plan-lifecycle.md`](p0-2-plan-lifecycle.md) | Implemented P0.2 contract |
 | [`p0-3-workout-execution.md`](p0-3-workout-execution.md) | Implemented P0.3 contract |
 | [`neon-auth.md`](neon-auth.md) | Neon Auth setup and JWT contract |
+| [`provisioned-resources.md`](provisioned-resources.md) | Neon project/Auth IDs, migration head, local env loading |
 | [`hosting.md`](hosting.md) | Always-on cloud hosting without cold starts; free/PAYG options |
 | [`adr/0001-modular-monolith.md`](adr/0001-modular-monolith.md) | Why modular monolith + Postgres/Redis/object storage |
 | [`adr/0002-auth-and-guest-mode.md`](adr/0002-auth-and-guest-mode.md) | OIDC auth, local guest mode, and roles |
