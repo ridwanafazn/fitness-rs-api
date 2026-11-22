@@ -24,6 +24,12 @@ def test_invalid_log_level_is_rejected(value):
 
 
 @pytest.mark.unit
+def test_render_environment_is_inferred(monkeypatch):
+    monkeypatch.setenv("RENDER", "true")
+    assert Settings(environment="development").environment == "production"
+
+
+@pytest.mark.unit
 def test_empty_ga_seed_is_none():
     assert Settings(ga_random_seed="").ga_random_seed is None
 

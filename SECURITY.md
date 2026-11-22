@@ -13,9 +13,11 @@ maintainer privately (GitHub: `@ridwanafazn`) with:
 ## Deployment expectations
 
 - Set `API_KEY` for any public deployment.
-- Set explicit `CORS_ORIGINS` and `ALLOWED_HOSTS`.
-- Keep `TRUST_PROXY_HEADERS=false` unless the API is behind a proxy you
-  control.
+- Set explicit `CORS_ORIGINS` and `ALLOWED_HOSTS` as soon as the frontend
+  origin is known. The default is `*` only to keep the existing frontend
+  working during migration.
+- Keep `TRUST_PROXY_HEADERS=true` only when the API is behind a proxy you
+  control (Render/Cloud Run); set it to `false` for direct exposure.
 - Use a shared Redis store for rate limiting when running multiple instances.
 - The app checks `Content-Length`; also enforce a body-size limit at your
   reverse proxy for chunked requests.

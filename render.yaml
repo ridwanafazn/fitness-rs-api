@@ -30,7 +30,7 @@ services:
       - key: RATE_LIMIT_ENABLED
         value: "true"
       - key: RATE_LIMIT
-        value: "30/minute"
+        value: "120/minute"
       - key: RATE_LIMIT_STORAGE_URI
         value: memory://
       - key: TRUST_PROXY_HEADERS

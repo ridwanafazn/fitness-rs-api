@@ -214,13 +214,13 @@ All settings are environment variables (see `.env.example`):
 |---|---|---|
 | `ENVIRONMENT` | `development` | `development`, `staging`, `production`, `test` |
 | `DATASET_PATH` | `data/fitness_dataset.csv` | Exercise CSV |
-| `CORS_ORIGINS` | localhost:3000,5173 | Exact allowed origins |
+| `CORS_ORIGINS` | `*` | Allowed origins; set explicit values in production |
 | `ALLOWED_HOSTS` | `*` | TrustedHost allowlist |
 | `API_KEY` | empty | Optional `X-API-Key` gate |
 | `RATE_LIMIT_ENABLED` | `true` | Enable the rate-limit middleware |
-| `RATE_LIMIT` | `30/minute` | Default limit |
+| `RATE_LIMIT` | `120/minute` | Default limit |
 | `RATE_LIMIT_STORAGE_URI` | `memory://` | Use Redis for multiple instances |
-| `TRUST_PROXY_HEADERS` | `false` | Trust `X-Forwarded-For` only behind your proxy |
+| `TRUST_PROXY_HEADERS` | `true` | Trust `X-Forwarded-For` only behind your proxy |
 | `MAX_REQUEST_BYTES` | `16384` | Reject oversized bodies |
 | `REQUEST_TIMEOUT_SECONDS` | `15` | Recommendation timeout |
 | `GA_NUM_GENERATIONS` | `25` | GA generations |

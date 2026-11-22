@@ -300,6 +300,19 @@ def test_metrics_endpoint_when_enabled(dataset_path: Path):
 
 
 @pytest.mark.integration
+def test_default_cors_keeps_frontend_compatible(client):
+    response = client.options(
+        "/api/v1/recommendation/",
+        headers={
+            "Origin": "https://frontend.example",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "*"
+
+
+@pytest.mark.integration
 def test_cors_allowlist(dataset_path: Path):
     settings = Settings(
         environment="test",

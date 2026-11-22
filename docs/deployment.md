@@ -16,7 +16,7 @@ Environment variables to set in the Render dashboard:
   cannot enumerate)
 - `API_KEY=...` (optional but recommended for a public API)
 - `TRUST_PROXY_HEADERS=true`
-- `RATE_LIMIT=30/minute`
+- `RATE_LIMIT=120/minute`
 - `RATE_LIMIT_STORAGE_URI=redis://...` if you run more than one instance
 - `REQUEST_TIMEOUT_SECONDS=15`
 

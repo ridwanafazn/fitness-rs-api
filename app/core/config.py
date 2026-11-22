@@ -7,6 +7,7 @@ tests deterministic and makes deployment configuration explicit.
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
@@ -37,8 +38,10 @@ class Settings(BaseSettings):
     dataset_path: Path = DEFAULT_DATASET_PATH
 
     # CORS is a comma-separated string so it can be configured from a plain
-    # environment variable without JSON encoding.
-    cors_origins: str = "http://localhost:3000,http://localhost:5173"
+    # environment variable without JSON encoding. The wildcard is kept as the
+    # default because the existing frontend was built against the old API;
+    # set explicit origins in production as soon as they are known.
+    cors_origins: str = "*"
     allowed_hosts: str = "*"
 
     # Optional API key.  When empty the API stays public (useful for demos).
@@ -47,11 +50,12 @@ class Settings(BaseSettings):
     # Rate limiting.  memory:// is fine for a single instance; use a Redis URI
     # when running more than one worker/instance.
     rate_limit_enabled: bool = True
-    rate_limit: str = "30/minute"
+    rate_limit: str = "120/minute"
     rate_limit_storage_uri: str = "memory://"
-    # Only enable behind a proxy you control (Render/Cloud Run), otherwise a
-    # client can spoof X-Forwarded-For and reset its own rate limit.
-    trust_proxy_headers: bool = False
+    # Render/Cloud Run sit in front of the app, so the forwarded client IP is
+    # needed to avoid putting every user in one shared bucket. Set this to
+    # false only when the app is directly exposed.
+    trust_proxy_headers: bool = True
 
     max_request_bytes: int = Field(default=16_384, gt=0, le=10_000_000)
     request_timeout_seconds: float = Field(default=15.0, gt=0, le=120)
@@ -106,6 +110,14 @@ class Settings(BaseSettings):
             raise ValueError("GA_NUM_PARENTS_MATING tidak boleh melebihi GA_SOL_PER_POP")
         if self.ga_keep_parents > self.ga_sol_per_pop:
             raise ValueError("GA_KEEP_PARENTS tidak boleh melebihi GA_SOL_PER_POP")
+        return self
+
+    @model_validator(mode="after")
+    def _infer_render_environment(self) -> Settings:
+        if self.environment == "development" and (
+            os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID")
+        ):
+            self.environment = "production"
         return self
 
     @property
