@@ -1,22 +1,32 @@
-"""
-Mengumpulkan semua router versi 1. Saat ini baru ada `recommendation`.
-Jika nanti Anda punya `users`, `auth`, dll., tambahkan di sini juga.
+"""Version 1 router assembly.
+
+The recommendation router is always mounted.  P0.1 profile endpoints are
+feature-flagged so the existing deployment keeps working until auth and a
+database are configured.
 """
 
-# Router yg sudah kita buat tadi
+from __future__ import annotations
+
 from fastapi import APIRouter
 
-from app.api import recommendation
+from app.api import me, recommendation
+from app.core.config import Settings
 
-api_router = APIRouter()
 
-# ─── ENDPOINT RECOMMENDATION ───────────────────────────────────
-api_router.include_router(
-    recommendation.router,
-    prefix="/recommendation",
-    tags=["recommendation"],
-)
+def build_api_router(settings: Settings) -> APIRouter:
+    router = APIRouter()
 
-# ─── Contoh jika nanti ada router lain ─────────────────────────
-# from app.api import users
-# api_router.include_router(users.router, prefix="/users", tags=["users"])
+    router.include_router(
+        recommendation.router,
+        prefix="/recommendation",
+        tags=["recommendation"],
+    )
+
+    if settings.auth_profiles_enabled:
+        router.include_router(
+            me.router,
+            prefix="/me",
+            tags=["me"],
+        )
+
+    return router

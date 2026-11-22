@@ -27,4 +27,4 @@ async def require_api_key(
     if not configured:
         return
     if not api_key or not secrets.compare_digest(api_key, configured):
-        raise UnauthorizedError()
+        raise UnauthorizedError("API key tidak valid atau tidak dikirim.")

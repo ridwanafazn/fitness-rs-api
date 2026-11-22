@@ -13,28 +13,82 @@ class AppError(Exception):
     code = "application_error"
     status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
     message = "Terjadi kesalahan pada aplikasi."
+    headers: Optional[Dict[str, str]] = None
 
     def __init__(
         self,
         message: Optional[str] = None,
         *,
         details: Optional[Any] = None,
+        headers: Optional[Dict[str, str]] = None,
     ) -> None:
         super().__init__(message or self.message)
         self.message = message or self.message
         self.details = details
+        self.headers = headers or self.headers
 
 
 class UnauthorizedError(AppError):
     code = "unauthorized"
     status_code = status.HTTP_401_UNAUTHORIZED
-    message = "API key tidak valid atau tidak dikirim."
+    message = "Token akses tidak valid atau tidak dikirim."
+
+
+class ForbiddenError(AppError):
+    code = "forbidden"
+    status_code = status.HTTP_403_FORBIDDEN
+    message = "Akses ditolak."
+
+
+class NotFoundError(AppError):
+    code = "not_found"
+    status_code = status.HTTP_404_NOT_FOUND
+    message = "Resource tidak ditemukan."
+
+
+class ConflictError(AppError):
+    code = "conflict"
+    status_code = status.HTTP_409_CONFLICT
+    message = "Terjadi konflik data."
+
+
+class ConsentRequiredError(ConflictError):
+    code = "consent_required"
+    message = "Persetujuan pemrosesan data kesehatan diperlukan."
+
+
+class AccountDeletionPendingError(ForbiddenError):
+    code = "account_deletion_pending"
+    message = "Akun sedang dalam proses penghapusan."
+
+
+class AuthNotConfiguredError(AppError):
+    code = "auth_not_configured"
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    message = "Autentikasi belum dikonfigurasi."
+
+
+class AuthUnavailableError(AppError):
+    code = "auth_unavailable"
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    message = "Layanan autentikasi sedang tidak tersedia."
+
+
+class DatabaseNotConfiguredError(AppError):
+    code = "database_not_configured"
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    message = "Database belum dikonfigurasi."
 
 
 class InvalidInputError(AppError):
     code = "invalid_input"
     status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     message = "Input tidak valid."
+
+
+class ProfileValidationError(InvalidInputError):
+    code = "validation_error"
+    message = "Data profil tidak valid."
 
 
 class UnsupportedDaysError(InvalidInputError):
@@ -86,8 +140,14 @@ def error_payload(
     if details is not None:
         error["details"] = details
     # ``detail`` is kept for clients built against the old FastAPI default
-    # error shape; new clients should use ``error``.
-    return {"error": error, "request_id": request_id, "detail": message}
+    # error shape; new clients should use ``error``.  ``message`` is a flat
+    # convenience key used by the current Vue frontend.
+    return {
+        "error": error,
+        "request_id": request_id,
+        "detail": message,
+        "message": message,
+    }
 
 
 def validation_details(errors: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:

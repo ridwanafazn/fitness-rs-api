@@ -42,7 +42,7 @@ transaction boundaries are simple.
 - Pagination: `limit` + `cursor` for lists.
 - Idempotency: `Idempotency-Key` for plan creation, workout sync, webhooks.
 - Error envelope: `error.code`, `error.message`, `error.details`, `request_id`,
-  plus legacy `detail` for the current frontend.
+  plus legacy `detail` and flat `message` for the current frontend.
 - Every response: `X-Request-ID`, `X-Process-Time` where relevant.
 
 ### Security
@@ -69,6 +69,9 @@ transaction boundaries are simple.
 ---
 
 # P0.1 — Identity, profile, consent
+
+**Status:** implemented behind `AUTH_PROFILES_ENABLED=false`. See
+`p0-1-identity-and-profiles.md` for the contract and implementation notes.
 
 **Goal:** users can create an account, complete a profile, and control their
 health data. Existing public recommendation still works without login.
@@ -102,7 +105,7 @@ health data. Existing public recommendation still works without login.
 | GET | `/api/v1/me/consents` | consent status |
 | POST | `/api/v1/me/consents` | grant/revoke consent |
 | DELETE | `/api/v1/me` | request account deletion |
-| GET | `/api/v1/me/export` | export user data (JSON) |
+| GET | `/api/v1/me/export` | export own data (JSON) |
 
 ### Rules
 

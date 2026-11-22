@@ -1,0 +1,54 @@
+"""Alembic migration smoke test using SQLite."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import create_engine, inspect
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_alembic_upgrade_and_downgrade_on_sqlite(tmp_path: Path) -> None:
+    database_path = (tmp_path / "migration.db").as_posix()
+    url = f"sqlite+pysqlite:///{database_path}"
+
+    config = Config(str(PROJECT_ROOT / "alembic.ini"))
+    config.set_main_option("script_location", str(PROJECT_ROOT / "migrations"))
+    config.set_main_option("sqlalchemy.url", url)
+
+    command.upgrade(config, "head")
+
+    engine = create_engine(url)
+    try:
+        inspector = inspect(engine)
+        tables = set(inspector.get_table_names())
+        assert {
+            "users",
+            "profiles",
+            "user_equipment",
+            "user_injuries",
+            "consents",
+            "user_roles",
+            "audit_log",
+        } <= tables
+
+        user_columns = {column["name"] for column in inspector.get_columns("users")}
+        assert {"auth_issuer", "auth_subject", "deletion_requested_at"} <= user_columns
+
+        role_indexes = {index["name"] for index in inspector.get_indexes("user_roles")}
+        assert "uq_user_roles_user_role_platform" in role_indexes
+    finally:
+        engine.dispose()
+
+    command.downgrade(config, "base")
+
+    engine = create_engine(url)
+    try:
+        tables = set(inspect(engine).get_table_names())
+        assert "users" not in tables
+        assert "audit_log" not in tables
+    finally:
+        engine.dispose()

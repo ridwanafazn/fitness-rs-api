@@ -15,7 +15,8 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app.api.v1.api import api_router
+from app.api.v1.api import build_api_router
+from app.auth.oidc import TokenVerifier
 from app.core.config import Settings, get_settings
 from app.core.errors import (
     AppError,
@@ -30,6 +31,7 @@ from app.core.middleware import (
     RequestIDMiddleware,
     SecurityHeadersMiddleware,
 )
+from app.db.session import database_is_ready, dispose_database, init_database
 from app.services.dataset import clear_dataset_cache, get_dataset
 
 logger = logging.getLogger("fitness_api")
@@ -47,6 +49,7 @@ def _register_exception_handlers(app: FastAPI) -> None:
                 request_id=request_id,
                 details=exc.details,
             ),
+            headers=exc.headers,
         )
 
     @app.exception_handler(RequestValidationError)
@@ -112,6 +115,14 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
         clear_dataset_cache()
         dataset = get_dataset(app_settings.dataset_path)
         app.state.dataset = dataset
+
+        engine, session_factory = init_database(app_settings)
+        app.state.db_engine = engine
+        app.state.session_factory = session_factory
+        app.state.token_verifier = (
+            TokenVerifier(app_settings) if app_settings.auth_enabled else None
+        )
+
         logger.info(
             "startup",
             extra={
@@ -119,10 +130,16 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
                 "dataset_version": dataset.version,
                 "dataset_size": len(dataset.exercises),
                 "version": app_settings.app_version,
+                "database_configured": engine is not None,
+                "auth_enabled": app_settings.auth_enabled,
+                "auth_profiles_enabled": app_settings.auth_profiles_enabled,
             },
         )
-        yield
-        logger.info("shutdown")
+        try:
+            yield
+        finally:
+            dispose_database(engine)
+            logger.info("shutdown")
 
     docs_enabled = app_settings.docs_enabled
     app = FastAPI(
@@ -173,20 +190,28 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
         CORSMiddleware,
         allow_origins=app_settings.cors_origin_list,
         allow_credentials=False,
-        allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type", "X-API-Key", "X-Request-ID"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-API-Key",
+            "X-Request-ID",
+            "Idempotency-Key",
+            "If-Match",
+        ],
         expose_headers=[
             "X-Process-Time",
             "X-Request-ID",
             "X-RateLimit-Limit",
             "X-RateLimit-Remaining",
             "X-RateLimit-Reset",
+            "Content-Disposition",
         ],
         max_age=600,
     )
 
     _register_exception_handlers(app)
-    app.include_router(api_router, prefix=app_settings.api_prefix)
+    app.include_router(build_api_router(app_settings), prefix=app_settings.api_prefix)
 
     @app.get("/", tags=["infra"], include_in_schema=False)
     def root() -> dict:
@@ -214,12 +239,24 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
                 status_code=503,
                 content={"status": "not_ready", "reason": "dataset_not_loaded"},
             )
+
+        engine = getattr(request.app.state, "db_engine", None)
+        database_status = "not_configured"
+        if engine is not None:
+            if not database_is_ready(engine):
+                return JSONResponse(
+                    status_code=503,
+                    content={"status": "not_ready", "reason": "database_unavailable"},
+                )
+            database_status = "ok"
+
         return JSONResponse(
             status_code=200,
             content={
                 "status": "ready",
                 "dataset_version": dataset.version,
                 "dataset_size": len(dataset.exercises),
+                "database": database_status,
             },
         )
 

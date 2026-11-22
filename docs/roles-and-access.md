@@ -199,6 +199,7 @@ Rules:
 
 - Consent has a version (`2026-01`) and timestamp.
 - Revocation is immediate for future access; historical audit remains.
+- Revoking `health_data_processing` also deletes stored injury rows.
 - Trainer access requires an active `trainer_sharing` grant.
 - A member can see who has access and revoke it.
 - Minors: do not support without a separate legal review.
@@ -211,10 +212,21 @@ Rules:
    Auth0, etc.).
 2. Frontend sends `Authorization: Bearer <access_token>`.
 3. Backend validates signature via JWKS, issuer, audience, and expiry.
-4. Backend maps `sub` to `users.auth_subject`; first request upserts the user.
+4. Backend maps `(iss, sub)` to `(users.auth_issuer, users.auth_subject)`; first
+   request upserts the user and assigns the default `user` role.
 5. Roles are loaded from `user_roles`/`memberships`, not trusted from the token.
 6. Guest mode never sends a token; it uses the public recommendation endpoint and
    local storage.
+
+Implementation status (P0.1):
+
+- Backend token validation, first-login upsert, roles, consent, export, and
+  deletion request are implemented.
+- `AUTH_DEV_MODE` (HS256) exists for local/test only and is rejected in
+  production. Production requires `AUTH_ISSUER`, `AUTH_AUDIENCE`, and
+  `AUTH_JWKS_URL`.
+- The frontend login callback and onboarding screens are not built yet.
+- Per-user rate limiting is still future work; the current limiter is IP-based.
 
 Token rules:
 

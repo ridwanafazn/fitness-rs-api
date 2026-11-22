@@ -162,3 +162,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Local SQLite databases
+*.db
+*.db-journal
+*.sqlite3

@@ -1,6 +1,7 @@
 # ADR 0003 — Health data, consent, and least privilege
 
-**Status:** Accepted  
+**Status:** Accepted and implemented in P0.1 (backend consent, audit, export,
+deletion request). Retention job and frontend consent UI are pending.
 **Date:** 2026-11-22
 
 ## Context

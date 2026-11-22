@@ -16,6 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 COPY data ./data
+COPY alembic.ini ./
+COPY migrations ./migrations
 COPY pyproject.toml README.md ./
 
 USER app

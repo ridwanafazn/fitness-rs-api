@@ -238,3 +238,5 @@ class ErrorDetail(BaseModel):
 class ErrorResponse(BaseModel):
     error: ErrorDetail
     request_id: str
+    detail: Optional[str] = None
+    message: Optional[str] = None

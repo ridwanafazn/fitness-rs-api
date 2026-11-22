@@ -1,3 +1,5 @@
+# Compatibility target only. The free plan sleeps and causes cold starts; see
+# docs/hosting.md for always-on deployment options.
 services:
   - type: web
     name: fitness-rs-api
@@ -27,6 +29,13 @@ services:
         value: "*"
       - key: API_KEY
         sync: false
+      # P0.1 is disabled until a database and OIDC provider are configured.
+      - key: DB_AUTO_CREATE
+        value: "false"
+      - key: AUTH_ENABLED
+        value: "false"
+      - key: AUTH_PROFILES_ENABLED
+        value: "false"
       - key: RATE_LIMIT_ENABLED
         value: "true"
       - key: RATE_LIMIT

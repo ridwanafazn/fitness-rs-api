@@ -8,7 +8,7 @@ This repository is the production-hardened version of the backend used in the
 2025 undergraduate thesis *Sistem Rekomendasi Program Fitness Berbasis Aturan
 dan Algoritma Optimasi Genetika* (UIN Sunan Gunung Djati Bandung).
 
-- **Live API:** https://fitness-rs-api.onrender.com
+- **Live API:** https://fitness-rs-api.onrender.com (Render free; cold start — see [`docs/hosting.md`](docs/hosting.md))
 - **Swagger UI:** https://fitness-rs-api.onrender.com/docs
 - **Health:** `/health`, readiness: `/ready`
 
@@ -198,11 +198,17 @@ Common codes:
 | `validation_error` | 422 | Invalid payload or enum value |
 | `unknown_injury` | 422 | Injury term not supported |
 | `insufficient_exercise_pool` | 422 | Not enough safe exercises |
+| `consent_required` | 409 | Health data requires consent |
+| `conflict` | 409 | Concurrent update or consent-version mismatch |
+| `account_deletion_pending` | 403 | Account is scheduled for deletion |
 | `rate_limit_exceeded` | 429 | Too many requests |
 | `request_too_large` | 413 | Request body exceeds the limit |
-| `unauthorized` | 401 | Missing/invalid `X-API-Key` |
+| `unauthorized` | 401 | Missing/invalid API key or bearer token |
+| `forbidden` | 403 | Authenticated but not allowed |
+| `auth_not_configured` | 503 | OIDC/auth settings are missing |
+| `database_not_configured` | 503 | `DATABASE_URL` is missing |
 | `internal_error` | 500 | Unexpected server error |
-| `service_unavailable` | 503 | Computation timeout |
+| `service_unavailable` | 503 | Computation timeout or auth provider unavailable |
 
 ---
 
@@ -217,6 +223,18 @@ All settings are environment variables (see `.env.example`):
 | `CORS_ORIGINS` | `*` | Allowed origins; set explicit values in production |
 | `ALLOWED_HOSTS` | `*` | TrustedHost allowlist |
 | `API_KEY` | empty | Optional `X-API-Key` gate |
+| `DATABASE_URL` | empty | Postgres/SQLite URL; required for P0.1 |
+| `DB_AUTO_CREATE` | `false` | Create tables locally/tests only; use Alembic in production |
+| `AUTH_ENABLED` | `false` | Validate OIDC bearer tokens |
+| `AUTH_PROFILES_ENABLED` | `false` | Mount `/api/v1/me` endpoints |
+| `AUTH_ISSUER` | empty | OIDC issuer |
+| `AUTH_AUDIENCE` | empty | OIDC audience |
+| `AUTH_JWKS_URL` | empty | HTTPS JWKS endpoint |
+| `AUTH_ALGORITHMS` | `RS256,ES256` | Allowed JWT algorithms |
+| `AUTH_DEV_MODE` | `false` | HS256 local/test only; rejected in production |
+| `AUTH_DEV_SECRET` | empty | Dev-only signing secret, min 32 chars |
+| `CONSENT_POLICY_VERSION` | `2026-01` | Consent policy version |
+| `ACCOUNT_DELETION_GRACE_DAYS` | `30` | Hard-delete window (job future work) |
 | `RATE_LIMIT_ENABLED` | `true` | Enable the rate-limit middleware |
 | `RATE_LIMIT` | `120/minute` | Default limit |
 | `RATE_LIMIT_STORAGE_URI` | `memory://` | Use Redis for multiple instances |
@@ -235,13 +253,75 @@ All settings are environment variables (see `.env.example`):
 Production checklist:
 
 1. Set `ENVIRONMENT=production`.
-2. Set explicit `CORS_ORIGINS` and `ALLOWED_HOSTS`. The Render blueprint
-   temporarily uses `CORS_ORIGINS=*` to avoid breaking the existing frontend;
-   tighten it after confirming the frontend origin.
-3. Set `API_KEY` if the API is public.
-4. Set `TRUST_PROXY_HEADERS=true` only behind Render/Cloud Run.
+2. Set explicit `CORS_ORIGINS` and `ALLOWED_HOSTS`. Tighten them after
+   confirming the frontend origin.
+3. Set `API_KEY` if the recommendation API is public.
+4. Set `TRUST_PROXY_HEADERS=true` only behind your proxy.
 5. Use Redis for `RATE_LIMIT_STORAGE_URI` if you run more than one instance.
 6. Keep `/ready` as the platform health check.
+7. For P0.1, set `DATABASE_URL`, run `alembic upgrade head`, and keep
+   `AUTH_PROFILES_ENABLED=false` until the OIDC provider and frontend are ready.
+8. Use an always-on host without cold starts; see [`docs/hosting.md`](docs/hosting.md).
+
+---
+
+## Accounts and profiles (P0.1)
+
+P0.1 adds identity, profile, equipment, injury, consent, export, and deletion
+endpoints. They are **feature-flagged** so the recommendation API stays unchanged
+until auth is ready.
+
+Mounted only when `AUTH_PROFILES_ENABLED=true`:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/me` | Current user, roles, profile completeness, consent state |
+| POST | `/api/v1/me/onboarding` | Idempotent profile + equipment + injuries + consent |
+| GET/PATCH | `/api/v1/me/profile` | Read or partially update profile |
+| PUT | `/api/v1/me/equipment` | Replace equipment list |
+| PUT | `/api/v1/me/injuries` | Replace injury list (health consent required) |
+| GET/POST | `/api/v1/me/consents` | Read/grant/revoke consent |
+| GET | `/api/v1/me/export` | Export own data as JSON |
+| DELETE | `/api/v1/me` | Request account deletion |
+
+Auth is provider-agnostic OIDC: the backend validates `Authorization: Bearer`
+against `AUTH_ISSUER`, `AUTH_AUDIENCE`, and `AUTH_JWKS_URL`. Roles are loaded from
+the database, never trusted from the token. There is no password storage.
+
+Local development:
+
+```bash
+DATABASE_URL=sqlite+pysqlite:///./local.db \
+DB_AUTO_CREATE=true \
+AUTH_ENABLED=true AUTH_PROFILES_ENABLED=true \
+AUTH_DEV_MODE=true AUTH_DEV_SECRET=change-me-32-characters-minimum \
+AUTH_ISSUER=https://dev.local AUTH_AUDIENCE=jymz-dev \
+uvicorn app.main:app --reload
+```
+
+Mint a local token:
+
+```bash
+TOKEN=$(python scripts/mint_dev_token.py --sub dev-user)
+curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/api/v1/me
+```
+
+Production:
+
+```bash
+DATABASE_URL="postgresql://..." alembic upgrade head
+```
+
+- Injuries cannot be stored without active `health_data_processing` consent.
+- Revoking health consent deletes stored injuries.
+- `DELETE /me` records a request and blocks authentication; the hard-delete
+  retention job is future work.
+- `AUTH_DEV_MODE` is rejected in production.
+- Keep `AUTH_PROFILES_ENABLED=false` until the frontend login/onboarding flow
+  exists.
+
+See [`docs/p0-1-identity-and-profiles.md`](docs/p0-1-identity-and-profiles.md)
+for the full contract and [`docs/hosting.md`](docs/hosting.md) for deployment.
 
 ---
 
@@ -264,6 +344,12 @@ The test suite covers:
 - GA invariants (unique exercises, seed reproducibility, tiny-pool failure)
 - API contract, error envelope, API key, request size, rate limit
 - safety regression: an injured body part must never appear in output
+- P0.1 auth: expired/wrong issuer/audience/signature, unsigned token, first-login
+  idempotency, JWT roles not trusted, unverified email not stored
+- P0.1 profile/consent: onboarding idempotency, injury consent gate, unknown
+  injury/equipment rejection, consent revoke deletes injuries, export isolation,
+  deletion request, PII-free audit metadata
+- Alembic upgrade/downgrade on a fresh SQLite database
 
 CI runs the same gates on Python 3.11 and 3.12 and builds/smokes the Docker
 image.
@@ -275,14 +361,17 @@ image.
 ```text
 app/
   api/            thin HTTP routes and dependencies
+  auth/           OIDC/JWKS validation, principal, first-login upsert
   core/           settings, errors, logging, middleware, security
+  db/             SQLAlchemy models, engine/session, URL normalization
   domain/         pure rules, focus mapping, injury taxonomy, fitness
   rules/          compatibility facade for the old rule-engine API
   schemas/        Pydantic request/response models
-  services/       dataset loader, filter, GA, orchestration
+  services/       dataset loader, filter, GA, orchestration, identity, audit
 data/             222-row curated exercise dataset
+migrations/       Alembic environment and P0.1 migration
 tests/            unit, integration, and API tests
-docs/             algorithm, API, deployment, audit, and product plans
+docs/             algorithm, API, deployment, hosting, audit, and product plans
 scripts/          benchmark helper
 ```
 
@@ -300,7 +389,8 @@ Start with:
 - [`docs/backend-plan.md`](docs/backend-plan.md) — backend scope per phase
 - [`docs/roles-and-access.md`](docs/roles-and-access.md) — roles, RBAC, consent
 - [`docs/data-model.md`](docs/data-model.md) — tables and invariants
-- [`docs/p0-1-identity-and-profiles.md`](docs/p0-1-identity-and-profiles.md) — next implementation phase
+- [`docs/p0-1-identity-and-profiles.md`](docs/p0-1-identity-and-profiles.md) — implemented P0.1 contract
+- [`docs/hosting.md`](docs/hosting.md) — always-on hosting without cold starts
 
 Frontend: [`ridwanafazn/city-master-v2`](https://github.com/ridwanafazn/city-master-v2), live at [`jymz.pages.dev`](https://jymz.pages.dev/).
 
@@ -308,9 +398,14 @@ Frontend: [`ridwanafazn/city-master-v2`](https://github.com/ridwanafazn/city-mas
 
 ## Deployment
 
-**Render is the canonical deployment** (`render.yaml`). The old `vercel.json`
-was removed because the computational workload and Python runtime do not fit
-the serverless path cleanly.
+The API is a persistent Python web service. **Do not use a sleeping free tier**
+(Render free/Koyeb free) for production because the cold start is unacceptable.
+See [`docs/hosting.md`](docs/hosting.md) for always-on free/PAYG options.
+
+The repository includes a Dockerfile and `render.yaml`; Render is kept as a
+compatibility target, not the recommended long-term host. The old `vercel.json`
+was removed because the computational workload and Python runtime do not fit the
+serverless path cleanly.
 
 ```bash
 # Docker
@@ -318,7 +413,7 @@ docker build -t fitness-rs-api .
 docker run --rm -p 8080:8080 --env-file .env fitness-rs-api
 ```
 
-Render settings:
+Container/platform settings:
 
 - health check: `/ready`
 - start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
@@ -326,8 +421,10 @@ Render settings:
   CPU-bound
 - set `TRUST_PROXY_HEADERS=true`
 - set `CORS_ORIGINS` and `API_KEY` in the dashboard
+- for P0.1: set `DATABASE_URL` and run `alembic upgrade head` before traffic
 
-See `docs/deployment.md` for details.
+See [`docs/deployment.md`](docs/deployment.md) and
+[`docs/hosting.md`](docs/hosting.md) for details.
 
 ---
 

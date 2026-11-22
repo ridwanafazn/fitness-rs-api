@@ -1,24 +1,57 @@
 # Deployment guide
 
-## Canonical target: Render
+## Canonical target: always-on container
 
-`render.yaml` defines the service. The health check must be `/ready` because
-that endpoint verifies the exercise dataset.
+The current blueprint uses Render (`render.yaml`), but **Render free sleeps and
+causes cold starts**. For a public deployment, use an always-on host. See
+[`hosting.md`](hosting.md) for the free/PAYG comparison and a Fly.io example.
 
-Environment variables to set in the Render dashboard:
+The health check must be `/ready` because that endpoint verifies the exercise
+dataset and, when configured, the database.
+
+## Environment variables
+
+Set these in the platform dashboard:
 
 - `ENVIRONMENT=production`
-- `CORS_ORIGINS=https://your-frontend.example` (the blueprint temporarily uses
-  `*` to match the old API while the frontend origin is being confirmed;
-  tighten it as soon as possible)
-- `ALLOWED_HOSTS=your-api.onrender.com` (include any internal health-check
-  hostname, or leave `*` if the platform's health checker uses a host you
-  cannot enumerate)
-- `API_KEY=...` (optional but recommended for a public API)
+- `CORS_ORIGINS=https://jymz.pages.dev` (use exact origins; `*` is temporary)
+- `ALLOWED_HOSTS=your-api.example` (include the platform health-check hostname,
+  or leave `*` if the platform uses a host you cannot enumerate)
+- `API_KEY=...` (optional but recommended for the public recommendation API)
 - `TRUST_PROXY_HEADERS=true`
 - `RATE_LIMIT=120/minute`
 - `RATE_LIMIT_STORAGE_URI=redis://...` if you run more than one instance
 - `REQUEST_TIMEOUT_SECONDS=15`
+
+P0.1 database and auth:
+
+- `DATABASE_URL=postgresql://...` (the app converts it to psycopg 3)
+- `DB_AUTO_CREATE=false`
+- `AUTH_ENABLED=false` and `AUTH_PROFILES_ENABLED=false` until the OIDC provider
+  and frontend onboarding are ready
+- When enabling:
+  - `AUTH_ENABLED=true`
+  - `AUTH_PROFILES_ENABLED=true`
+  - `AUTH_ISSUER=https://...`
+  - `AUTH_AUDIENCE=...`
+  - `AUTH_JWKS_URL=https://.../.well-known/jwks.json`
+  - `AUTH_ALGORITHMS=RS256,ES256`
+- `CONSENT_POLICY_VERSION=2026-01`
+- `ACCOUNT_DELETION_GRACE_DAYS=30`
+
+Run the migration before shifting traffic:
+
+```bash
+DATABASE_URL="postgresql://..." alembic upgrade head
+```
+
+Verify:
+
+```bash
+curl -fsS https://your-api.example/health
+curl -fsS https://your-api.example/ready
+# expect: status=ready, database=ok
+```
 
 The GA is CPU-bound. Scale with **instances**, not threads/workers. One worker
 per instance is usually the right default on a small plan.
@@ -48,7 +81,7 @@ The image:
 The old `vercel.json` used the legacy `builds`/`routes` format and Python 3.9.
 The recommendation workload is CPU-bound and better served by a persistent
 web service. Keeping two deployment paths made it unclear which one was
-authoritative. Render is now the single documented path.
+authoritative. See [`hosting.md`](hosting.md) for the current hosting options.
 
 ## Reverse proxy and client IP
 
@@ -71,6 +104,9 @@ platform's network controls or disable it and rely on platform metrics.
 
 ## Rollback
 
-- Keep the previous image tag / Render deploy.
-- Roll back the Render deploy to the last healthy build.
-- `/ready` must return 200 and `dataset_version` before shifting traffic.
+- Keep the previous image tag/deploy on the platform.
+- Roll back to the last healthy build.
+- `/ready` must return 200 with `dataset_version` and `database=ok` before
+  shifting traffic.
+- Do not run destructive migrations during a rollback; prefer additive
+  migrations and a forward fix.

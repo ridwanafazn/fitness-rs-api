@@ -1,6 +1,8 @@
 # P0.1 — Identity, profile, consent
 
-**Status:** planning only. No implementation has started.
+**Status:** implemented behind `AUTH_PROFILES_ENABLED=false`. Backend, migration,
+and tests are complete; production still needs a real OIDC provider, a Postgres
+database, and frontend onboarding screens.
 
 ## Goal
 
@@ -60,11 +62,25 @@ Recommended implementation:
 Configuration:
 
 ```text
+AUTH_ENABLED=true
+AUTH_PROFILES_ENABLED=true
 AUTH_ISSUER=https://...
 AUTH_AUDIENCE=...
 AUTH_JWKS_URL=https://.../.well-known/jwks.json
-AUTH_ENABLED=true
+AUTH_ALGORITHMS=RS256,ES256
 ```
+
+Local/test only (never in production):
+
+```text
+AUTH_DEV_MODE=true
+AUTH_DEV_SECRET=<min 32 characters>
+AUTH_ISSUER=https://issuer.test
+AUTH_AUDIENCE=fitness-api-test
+```
+
+`AUTH_DEV_MODE` uses HS256 and is rejected when `ENVIRONMENT=production`.
+Production uses JWKS only; HS256 is rejected outside dev mode.
 
 Token validation:
 
@@ -77,12 +93,13 @@ First authenticated request:
 
 ```text
 validate token
-  → find users.auth_subject = sub
+  → find users by (auth_issuer, auth_subject)
     → found: load user
     → not found: insert user with default role "user"
 ```
 
-This upsert must be idempotent and safe under concurrent first requests.
+This upsert is idempotent and safe under concurrent first requests. The token
+`sub` is scoped by issuer, so two providers cannot collide.
 
 ## Guest mode
 
@@ -100,7 +117,8 @@ Why: lower friction, lower privacy risk, simpler data model.
 
 See `data-model.md` for full columns. P0.1 creates:
 
-- `users`
+- `users` — includes `auth_issuer`, `auth_subject`, `deletion_requested_at`,
+  `deletion_scheduled_for`
 - `profiles`
 - `user_equipment`
 - `user_injuries`
@@ -108,7 +126,8 @@ See `data-model.md` for full columns. P0.1 creates:
 - `user_roles`
 - `audit_log`
 
-Default role on first login: `user`.
+Default role on first login: `user`. `platform_admin` is seeded manually and
+never granted through the API.
 
 ## API contract
 
@@ -164,12 +183,17 @@ and consent records in one transaction.
 
 Rules:
 
-- `health_data_processing` is required if `injuries` is not empty.
+- `profile` is required and must be complete.
+- `equipment` and `injuries` are optional. Omit to leave existing data
+  unchanged; send `[]` to clear. This keeps retries safe.
+- `health_data_processing` is required if `injuries` is non-empty. The check
+  uses the consent in the same request or the currently active consent.
 - Unknown injuries return `422 unknown_injury`.
 - Unknown equipment returns `422 validation_error`.
 - Values use the same bounds as `RecommendationRequest`.
 - Empty equipment means “all equipment allowed”.
 - The operation is transactional: either all pieces are saved or none.
+- Revoking `health_data_processing` deletes stored injuries immediately.
 
 ### `GET /api/v1/me/profile`
 
@@ -206,8 +230,10 @@ Grant or revoke a consent kind.
 
 ### `DELETE /api/v1/me`
 
-Creates an account-deletion request. Returns `202 Accepted` with a request id.
-A retention job performs the hard delete.
+Creates an account-deletion request. Returns `202 Accepted` with the request id,
+`requested_at`, and `scheduled_for`. A retention job performs the hard delete
+after `ACCOUNT_DELETION_GRACE_DAYS` (default 30). After the request, the user's
+token is rejected with `403 account_deletion_pending`.
 
 ### `GET /api/v1/me/export`
 
@@ -233,7 +259,7 @@ plans/workouts when those phases exist).
 | `unknown_injury` | 422 | Injury term not supported |
 | `validation_error` | 422 | Invalid profile/equipment |
 | `conflict` | 409 | Concurrent update |
-| `account_deletion_pending` | 409 | Account already scheduled for deletion |
+| `account_deletion_pending` | 403 | Account already scheduled for deletion |
 
 Keep the existing error envelope (`error`, `request_id`, legacy `detail`). Add a
 top-level `message` for the current frontend error handler if not already
@@ -316,27 +342,76 @@ Rollback:
 - Revert frontend onboarding route.
 - Do not drop tables in the first rollback; keep data.
 
+## Implementation notes
+
+Implemented backend files:
+
+- `app/db/` — SQLAlchemy models, engine/session, URL normalization
+- `app/auth/` — OIDC/JWKS validation, principal dependency, first-login upsert
+- `app/schemas/me.py` — request/response models
+- `app/services/identity.py` — profile, equipment, injury, consent, deletion
+- `app/services/audit.py` — append-only audit helper
+- `app/api/me.py` — `/api/v1/me` endpoints
+- `migrations/versions/0001_identity_profiles.py` — P0.1 migration
+- `tests/integration/test_me.py`, `tests/integration/test_migrations.py`,
+  `tests/unit/test_auth_config.py`
+
+Local run:
+
+```bash
+DATABASE_URL=sqlite+pysqlite:///./local.db \
+DB_AUTO_CREATE=true \
+AUTH_ENABLED=true AUTH_PROFILES_ENABLED=true \
+AUTH_DEV_MODE=true AUTH_DEV_SECRET=change-me-32-characters-minimum \
+AUTH_ISSUER=https://dev.local AUTH_AUDIENCE=jymz-dev \
+uvicorn app.main:app --reload
+```
+
+Mint a local token and call the API:
+
+```bash
+TOKEN=$(python scripts/mint_dev_token.py --sub dev-user)
+curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/api/v1/me
+```
+
+Production migration:
+
+```bash
+DATABASE_URL="postgresql://..." alembic upgrade head
+```
+
+Known limitations at this stage:
+
+- No real OIDC provider is configured in the repository; tests use dev mode.
+- Frontend onboarding, login callback, and consent screens are not built yet.
+- `DELETE /me` records a request; the hard-delete retention job is future work.
+- Rate limiting is still IP-based globally; per-user limits come later.
+- Email is optional and only stored when the provider marks it verified.
+- `GET /me/export` currently covers P0.1 data only; plans/workouts are added in
+  later phases.
+
 ## Task checklist
 
 ### Backend
 
-- [ ] Add Postgres + SQLAlchemy + Alembic dependencies.
-- [ ] Add auth settings and JWKS validation.
-- [ ] Add `users` upsert on first login.
-- [ ] Add profile/equipment/injuries/consent repositories.
-- [ ] Add `/me` endpoints and schemas.
-- [ ] Add consent gate.
-- [ ] Add audit events.
-- [ ] Add export/delete request.
-- [ ] Add tests.
-- [ ] Update OpenAPI.
+- [x] Add Postgres + SQLAlchemy + Alembic dependencies.
+- [x] Add auth settings and JWKS validation.
+- [x] Add `users` upsert on first login.
+- [x] Add profile/equipment/injuries/consent repositories.
+- [x] Add `/me` endpoints and schemas.
+- [x] Add consent gate.
+- [x] Add audit events.
+- [x] Add export/delete request.
+- [x] Add tests.
+- [x] Update OpenAPI.
 
 ### Database
 
-- [ ] Create P0.1 migration.
-- [ ] Add indexes and constraints.
-- [ ] Seed `user` role behavior.
-- [ ] Test migration from empty DB.
+- [x] Create P0.1 migration.
+- [x] Add indexes and constraints.
+- [x] Seed `user` role behavior.
+- [x] Test migration from empty DB (SQLite upgrade/downgrade; Postgres runbook
+  documented).
 
 ### Frontend
 
@@ -350,10 +425,11 @@ Rollback:
 
 ### Docs
 
-- [ ] Update OpenAPI/API docs.
-- [ ] Add privacy/consent copy.
-- [ ] Add deployment env vars.
-- [ ] Add ADR links.
+- [x] Update OpenAPI/API docs.
+- [x] Add privacy/consent copy (draft; legal review pending).
+- [x] Add deployment env vars.
+- [x] Add ADR links.
+- [x] Add hosting/cold-start guidance.
 
 ## Acceptance criteria
 
@@ -367,6 +443,11 @@ Rollback:
 8. No token/PII appears in logs.
 9. OpenAPI is updated and frontend types can be generated.
 10. Feature flag can disable the new flow without breaking the old app.
+
+Backend status: criteria 2, 3, 4, 5, 7, 8, 9, and 10 are covered by tests.
+Criteria 1 and 6 depend on the frontend work that has not started; the backend
+contract is ready. Criterion 3 is verified for a single client; the upsert also
+has a concurrent-insert retry path.
 
 ## Open decisions
 

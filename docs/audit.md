@@ -59,10 +59,25 @@ still intentionally left for future work.
 - CSV path resolved from the project root, not the process CWD.
 - Dead `csv_loader.py`, `dependencies.py`, and empty `app/models` removed.
 - `pyproject.toml` with Ruff, mypy, pytest, and coverage configuration.
-- 135 tests covering rules, injuries, focus, fitness, dataset, GA, and API.
+- 171 tests covering rules, injuries, focus, fitness, dataset, GA, API, P0.1
+  auth/profile/consent, and SQLite migration upgrade/downgrade.
 - GitHub Actions CI for Python 3.11/3.12 and Docker build.
 - Docker runs as a non-root user and has a health check.
 - Structured JSON logging and `/ready`.
+
+### P0.1 identity and profiles
+
+- SQLAlchemy 2 models and Alembic migration for `users`, `profiles`,
+  `user_equipment`, `user_injuries`, `consents`, `user_roles`, and `audit_log`.
+- OIDC/JWKS bearer-token validation; first-login user upsert keyed by
+  `(auth_issuer, auth_subject)`; default `user` role from the database.
+- Local/test `AUTH_DEV_MODE` (HS256) is rejected in production.
+- Profile, equipment, injury, consent, export, and account-deletion-request
+  endpoints under `/api/v1/me`, mounted only when `AUTH_PROFILES_ENABLED=true`.
+- Injury consent gate; revoking health consent deletes stored injuries.
+- PII-free audit metadata and explicit data export.
+- P0.1 is feature-flagged so the existing recommendation deployment is unchanged.
+
 
 ### Dependencies
 
@@ -75,7 +90,8 @@ still intentionally left for future work.
 
 ### Deployment
 
-- Render is the single documented target (`render.yaml`).
+- Render remains a compatibility target (`render.yaml`); always-on hosting
+  options are documented in `hosting.md`.
 - Legacy `vercel.json` removed.
 - `.env.example` documents every setting.
 - `.dockerignore` excludes tests, docs, caches, and secrets.
@@ -86,7 +102,12 @@ still intentionally left for future work.
 - Dataset is 222 exercises; hamstrings and neck are underrepresented.
 - Fitness weights are inherited from the thesis and are not clinically tuned.
 - No multi-expert validation, user study, or ablation in this engineering pass.
-- No database or user accounts; the API is stateless by design.
+- P0.1 is implemented, but no real OIDC provider is configured in the repo and
+  the frontend onboarding/login screens are not built yet.
+- Account deletion currently records a request; the hard-delete retention job
+  is future work.
+- Rate limiting is IP-based globally; per-user limits are future work.
+- Plans, workout logs, and feedback are not implemented yet (P0.2–P0.4).
 - `/metrics` should be protected in a public deployment.
 - A shared Redis store is required for rate limiting across multiple instances.
 - The in-memory `limits` store is per-process; use Redis for multiple instances.

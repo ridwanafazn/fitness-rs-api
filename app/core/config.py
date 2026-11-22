@@ -12,8 +12,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.db.url import normalize_database_url
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATASET_PATH = PROJECT_ROOT / "data" / "fitness_dataset.csv"
@@ -46,6 +48,30 @@ class Settings(BaseSettings):
 
     # Optional API key.  When empty the API stays public (useful for demos).
     api_key: Optional[str] = None
+
+    # Postgres (or SQLite for local development).  P0.1 endpoints are disabled
+    # unless AUTH_PROFILES_ENABLED=true, so the recommendation-only deployment
+    # keeps working without a database.
+    database_url: Optional[str] = None
+    # Convenience for local/test only. Production schema changes use Alembic.
+    db_auto_create: bool = False
+
+    # OIDC authentication and the P0.1 profile/consent endpoints.
+    auth_enabled: bool = False
+    auth_profiles_enabled: bool = False
+    auth_issuer: Optional[str] = None
+    auth_audience: Optional[str] = None
+    auth_jwks_url: Optional[str] = None
+    auth_algorithms: str = "RS256,ES256"
+    auth_jwks_cache_seconds: int = Field(default=3600, ge=60, le=86_400)
+    auth_leeway_seconds: int = Field(default=30, ge=0, le=300)
+
+    # Test/local-only symmetric signing. Never allowed in production.
+    auth_dev_mode: bool = False
+    auth_dev_secret: Optional[SecretStr] = None
+
+    consent_policy_version: str = "2026-01"
+    account_deletion_grace_days: int = Field(default=30, ge=1, le=365)
 
     # Rate limiting.  memory:// is fine for a single instance; use a Redis URI
     # when running more than one worker/instance.
@@ -86,6 +112,35 @@ class Settings(BaseSettings):
             return value
         return (PROJECT_ROOT / value).resolve()
 
+    @field_validator("database_url", mode="after")
+    @classmethod
+    def _normalise_database_url(cls, value: Optional[str]) -> Optional[str]:
+        return normalize_database_url(value)
+
+    @field_validator("auth_algorithms")
+    @classmethod
+    def _normalise_auth_algorithms(cls, value: str) -> str:
+        allowed = {
+            "RS256",
+            "RS384",
+            "RS512",
+            "ES256",
+            "ES384",
+            "ES512",
+            "PS256",
+            "PS384",
+            "PS512",
+            "EdDSA",
+            "HS256",
+        }
+        items = [item.strip().upper() for item in value.split(",") if item.strip()]
+        if not items:
+            raise ValueError("AUTH_ALGORITHMS tidak boleh kosong")
+        unknown = sorted(set(items) - allowed)
+        if unknown:
+            raise ValueError(f"AUTH_ALGORITHMS tidak didukung: {', '.join(unknown)}")
+        return ",".join(dict.fromkeys(items))
+
     @field_validator("log_level")
     @classmethod
     def _normalise_log_level(cls, value: str) -> str:
@@ -113,11 +168,57 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def _infer_render_environment(self) -> Settings:
-        if self.environment == "development" and (
-            os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID")
+    def _infer_cloud_environment(self) -> Settings:
+        if self.environment == "development" and any(
+            os.getenv(name)
+            for name in (
+                "RENDER",
+                "RENDER_SERVICE_ID",
+                "FLY_APP_NAME",
+                "K_SERVICE",
+                "K_REVISION",
+            )
         ):
             self.environment = "production"
+        return self
+
+    @model_validator(mode="after")
+    def _validate_auth_configuration(self) -> Settings:
+        if self.db_auto_create and self.is_production:
+            raise ValueError("DB_AUTO_CREATE tidak boleh aktif di production")
+
+        if self.auth_dev_mode:
+            if self.is_production:
+                raise ValueError("AUTH_DEV_MODE tidak boleh aktif di production")
+            secret = self.auth_dev_secret_value
+            if not secret or len(secret) < 32:
+                raise ValueError("AUTH_DEV_SECRET minimal 32 karakter di dev mode")
+            if not self.auth_issuer or not self.auth_audience:
+                raise ValueError("AUTH_ISSUER dan AUTH_AUDIENCE wajib di dev mode")
+
+        if self.auth_enabled and not self.auth_dev_mode:
+            missing = [
+                name
+                for name, value in (
+                    ("AUTH_ISSUER", self.auth_issuer),
+                    ("AUTH_AUDIENCE", self.auth_audience),
+                    ("AUTH_JWKS_URL", self.auth_jwks_url),
+                )
+                if not value
+            ]
+            if missing:
+                raise ValueError(f"Konfigurasi auth belum lengkap: {', '.join(missing)}")
+            if self.auth_jwks_url and not self.auth_jwks_url.startswith("https://"):
+                raise ValueError("AUTH_JWKS_URL harus HTTPS")
+            if "HS256" in self.auth_algorithm_list:
+                raise ValueError("HS256 hanya diizinkan saat AUTH_DEV_MODE=true")
+
+        if self.auth_profiles_enabled:
+            if not self.auth_enabled:
+                raise ValueError("AUTH_PROFILES_ENABLED membutuhkan AUTH_ENABLED=true")
+            if self.is_production and not self.database_url:
+                raise ValueError("DATABASE_URL wajib di production saat profil aktif")
+
         return self
 
     @property
@@ -136,6 +237,16 @@ class Settings(BaseSettings):
     @property
     def is_test(self) -> bool:
         return self.environment == "test"
+
+    @property
+    def auth_algorithm_list(self) -> List[str]:
+        return [item.strip() for item in self.auth_algorithms.split(",") if item.strip()]
+
+    @property
+    def auth_dev_secret_value(self) -> Optional[str]:
+        if self.auth_dev_secret is None:
+            return None
+        return self.auth_dev_secret.get_secret_value()
 
 
 @lru_cache(maxsize=1)

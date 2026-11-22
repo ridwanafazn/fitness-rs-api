@@ -26,11 +26,14 @@ erDiagram
 
     USERS {
         uuid id PK
-        text auth_subject UK
+        text auth_issuer
+        text auth_subject
         text email
         text display_name
         timestamptz created_at
         timestamptz updated_at
+        timestamptz deletion_requested_at
+        timestamptz deletion_scheduled_for
         timestamptz deleted_at
     }
 
@@ -99,14 +102,18 @@ erDiagram
 | Column | Type | Notes |
 |---|---|---|
 | `id` | uuid | PK |
-| `auth_subject` | text | unique; OIDC `sub` |
-| `email` | text | optional; normalized |
+| `auth_issuer` | text | OIDC `iss` |
+| `auth_subject` | text | OIDC `sub` |
+| `email` | text | optional; normalized lowercase, only if verified |
 | `display_name` | text | optional |
 | `created_at` | timestamptz | |
 | `updated_at` | timestamptz | |
+| `deletion_requested_at` | timestamptz | set by `DELETE /me` |
+| `deletion_scheduled_for` | timestamptz | hard-delete deadline |
 | `deleted_at` | timestamptz | soft delete |
 
-Indexes: unique `auth_subject`; index `lower(email)` if email search is needed.
+Indexes: unique `(auth_issuer, auth_subject)`; index `lower(email)` if email
+search is needed. A subject is scoped by issuer so two providers cannot collide.
 
 ### `profiles`
 
@@ -131,10 +138,11 @@ enum. Empty list means “all equipment allowed”, not “none”.
 
 - `term` is the normalized user-facing term (`knee`, `lower back`, ...).
 - `body_parts` is the resolved domain mapping at write time (for audit and
-  filtering).
+  filtering). It is `text[]` on Postgres and JSON on SQLite for local tests.
 - Unique `(user_id, term)`.
 - Requires active `health_data_processing` consent.
 - Unknown terms are rejected before insert.
+- Revoking health consent deletes the user's injury rows immediately.
 
 ### `consents`
 
@@ -144,6 +152,8 @@ enum. Empty list means “all equipment allowed”, not “none”.
 - `granted_at` / `revoked_at`.
 - Active consent = latest row for `(user_id, kind)` with `revoked_at IS NULL`.
 - `ip_hash` is optional and hashed; never store raw IP.
+- A policy-version change revokes the old record and inserts a new grant.
+- Revoking `health_data_processing` deletes stored injuries.
 
 ### `user_roles`
 
@@ -272,7 +282,7 @@ Rules:
 ## Invariants
 
 1. One `profiles` row per `users` row.
-2. `users.auth_subject` is unique and immutable.
+2. `(auth_issuer, auth_subject)` is unique and immutable.
 3. Injuries cannot be stored without active health-data consent.
 4. `platform_admin` cannot be granted through the public API.
 5. A trainer can access a client only through an active `access_grant`.
@@ -281,8 +291,8 @@ Rules:
 7. A share token never includes user id, email, injury data, or notes.
 8. A workout set is unique per `(user_id, client_mutation_id)`.
 9. Audit rows are append-only.
-10. Soft-deleted users cannot authenticate; their data is removed by a
-    retention job.
+10. Soft-deleted or deletion-pending users cannot authenticate; their data is
+    removed by a retention job.
 
 ---
 
@@ -302,15 +312,19 @@ Rules:
 10. `feedback` → `unsafe_reports`
 11. P1/P2 tables
 
+Steps 1–7 are implemented in `migrations/versions/0001_identity_profiles.py`.
 Each migration must be reversible where practical, and tested against a fresh
-database.
+database. The P0.1 migration is tested on SQLite (upgrade + downgrade); the
+Postgres runbook is in `hosting.md`.
 
 ---
 
 ## Retention and deletion
 
-- Soft delete immediately; hard delete after a configurable window (e.g. 30
-  days) unless legal/audit retention applies.
+- `DELETE /me` sets `deletion_requested_at` and `deletion_scheduled_for`
+  immediately and blocks authentication.
+- A retention job performs the hard delete after the grace window (default 30
+  days) unless legal/audit retention applies. The job is not implemented yet.
 - Account deletion removes profile, injuries, equipment, plans, workouts,
   feedback, and consents; audit rows are retained without PII.
 - Research export uses aggregate or de-identified data only.
