@@ -17,6 +17,7 @@ from app.api import (
     plans,
     progress,
     recommendation,
+    research,
     trainer,
     workouts,
 )
@@ -130,6 +131,18 @@ def build_api_router(settings: Settings) -> APIRouter:
             organizations.invitation_router,
             prefix="/org-invitations",
             tags=["organizations"],
+        )
+
+    if settings.research_enabled:
+        router.include_router(
+            research.user_router,
+            prefix="/me",
+            tags=["research"],
+        )
+        router.include_router(
+            research.admin_router,
+            prefix="/admin",
+            tags=["research"],
         )
 
     return router

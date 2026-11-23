@@ -290,6 +290,52 @@ class OrganizationValidationError(InvalidInputError):
     message = "Data organisasi tidak valid."
 
 
+class ResearchConsentRequiredError(ForbiddenError):
+    code = "research_consent_required"
+    message = "Persetujuan research analytics diperlukan."
+
+
+class ResearchEventInvalidError(InvalidInputError):
+    code = "research_event_invalid"
+    message = "Event research tidak valid."
+
+
+class ExperimentNotFoundError(NotFoundError):
+    code = "experiment_not_found"
+    message = "Eksperimen tidak ditemukan."
+
+
+class ExperimentConflictError(ConflictError):
+    code = "experiment_conflict"
+    message = "Terjadi konflik pada eksperimen."
+
+
+class ExperimentValidationError(InvalidInputError):
+    code = "experiment_invalid"
+    message = "Data eksperimen tidak valid."
+
+
+class QualityReviewNotFoundError(NotFoundError):
+    code = "quality_review_not_found"
+    message = "Quality review tidak ditemukan."
+
+
+class QualityReviewValidationError(InvalidInputError):
+    code = "quality_review_invalid"
+    message = "Data quality review tidak valid."
+
+
+class ResearchExportNotConfiguredError(AppError):
+    code = "research_export_not_configured"
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    message = "Research export belum dikonfigurasi."
+
+
+class ResearchRangeInvalidError(InvalidInputError):
+    code = "research_range_invalid"
+    message = "Rentang tanggal research tidak valid."
+
+
 class ProfileValidationError(InvalidInputError):
     code = "validation_error"
     message = "Data profil tidak valid."

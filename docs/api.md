@@ -239,6 +239,29 @@ Organization membership is separate from health-data access. Non-members
 receive `404`; members without the required role receive `403
 organization_access_denied`.
 
+## P2.2 research endpoints (consent-gated)
+
+Mounted only when `RESEARCH_ENABLED=true`. Full contract:
+[`p2-2-research-and-quality.md`](p2-2-research-and-quality.md).
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/api/v1/me/events` | user + research consent | Submit allowlisted event |
+| GET | `/api/v1/me/experiments` | user + research consent | Assign/read variants |
+| POST | `/api/v1/admin/research/versions/register` | platform admin | Snapshot versions |
+| GET | `/api/v1/admin/research/versions` | platform admin | List versions |
+| GET | `/api/v1/admin/research/report` | platform admin | Aggregate report |
+| GET | `/api/v1/admin/research/export` | platform admin | Redacted export |
+| POST/GET | `/api/v1/admin/experiments` | platform admin | Create/list experiments |
+| GET/PATCH | `/api/v1/admin/experiments/{experiment_id}` | platform admin | Report/update |
+| POST/GET | `/api/v1/admin/quality-reviews` | platform admin | Create/list reviews |
+| GET/PATCH | `/api/v1/admin/quality-reviews/{review_id}` | platform admin | Detail/update |
+
+`start` and `end` are required ISO 8601 query parameters for reports/exports,
+with a maximum 366-day window. Exports require `RESEARCH_EXPORT_SECRET` and
+replace user/plan/workout IDs with HMAC pseudonyms. No comments, notes,
+reasons, emails, or titles are exported.
+
 ## Response envelope
 
 Success uses the endpoint-specific schema. Every response includes:

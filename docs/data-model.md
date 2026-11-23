@@ -435,11 +435,49 @@ Rules:
 
 ---
 
-## P2.2/P2.3 tables (summary)
+## P2.2 research tables
+
+```text
+research_events
+  id, owner_user_id, name, properties jsonb, occurred_at, received_at,
+  idempotency_key, created_at
+
+experiments
+  id, key (unique), name, description, status, variants jsonb,
+  traffic_percent, created_by, started_at, ended_at, created_at, updated_at
+
+experiment_assignments
+  id, experiment_id, user_id, variant, assigned_at, exposed_at
+  unique(experiment_id, user_id)
+
+research_versions
+  id, kind (dataset|algorithm), version, checksum, row_count,
+  metadata jsonb, created_at
+  unique(kind, version)
+
+quality_reviews
+  id, reviewer_user_id, subject_type, subject_id, status, rubric jsonb,
+  notes, created_at, updated_at
+```
+
+Rules:
+
+- Event names come from a fixed allowlist; properties are flat and PII-free.
+- Event idempotency is unique per `(owner_user_id, idempotency_key)`.
+- Assignment is unique per `(experiment_id, user_id)` and never rewritten.
+- Dataset/algorithm versions are unique per `(kind, version)`.
+- Quality review subjects are plan-version UUIDs or registered dataset/
+  algorithm versions; notes never enter audit metadata or exports.
+- Reports/exports include only users with active `research_analytics` consent.
+- Export replaces user/plan/workout IDs with HMAC pseudonyms; no titles,
+  comments, notes, reasons, emails, or raw IDs.
+
+---
+
+## P2.3 tables (summary)
 
 | Phase | Tables |
 |---|---|
-| P2.2 | `events`, `experiments`, `assignments`, `quality_reviews` |
 | P2.3 | no new domain tables; operational infrastructure |
 
 ---
@@ -460,6 +498,10 @@ Rules:
     active scope grant; revocation is effective immediately.
 11. Soft-deleted or deletion-pending users cannot authenticate; their data is
     removed by a retention job.
+12. Research events require active `research_analytics` consent at ingestion.
+13. Experiment assignments are immutable for a given `(experiment_id, user_id)`.
+14. Research exports never contain direct identifiers, titles, notes, comments,
+    reasons, or raw user/plan/workout UUIDs.
 
 ---
 
@@ -484,7 +526,9 @@ Rules:
     `integration_tokens`
 14. `organizations` → `organization_memberships` →
     `organization_invitations`
-15. P2.2 tables
+15. `research_events` → `experiments` → `experiment_assignments` →
+    `research_versions` → `quality_reviews`
+16. P2.3 operational infrastructure
 
 Steps 1–7 are implemented in `migrations/versions/0001_identity_profiles.py`.
 The P0.2 plan tables are implemented in
@@ -495,8 +539,9 @@ are implemented in `migrations/versions/0005_progress.py`. The P1.2 trainer
 tables are implemented in `migrations/versions/0006_trainer.py`. The P1.3
 notification tables are implemented in
 `migrations/versions/0007_notifications.py`. The P2.1 organization tables are
-implemented in `migrations/versions/0008_organizations.py`. Each migration must
-be reversible where practical, and tested against a fresh database. All
+implemented in `migrations/versions/0008_organizations.py`. The P2.2 research
+tables are implemented in `migrations/versions/0009_research.py`. Each migration
+must be reversible where practical, and tested against a fresh database. All
 migrations are tested on SQLite (upgrade + downgrade); the Postgres runbook is
 in `hosting.md`.
 

@@ -74,6 +74,12 @@ maintainer privately (GitHub: `@ridwanafazn`) with:
   shown once. Organization membership does not grant health-data access; trainer
   reads still require a P1.2 relationship and scope grant. Non-members receive
   `404` to avoid disclosing organization existence.
+- P2.2 research events require active `research_analytics` consent, reject
+  sensitive property keys, and are rate-limited. Reports/exports include only
+  currently consented users. Exports require `RESEARCH_EXPORT_SECRET` and replace
+  user/plan/workout IDs with HMAC pseudonyms; titles, comments, notes, reasons,
+  emails, and raw IDs are excluded. Quality-review notes and export secrets never
+  enter audit metadata.
 - Audit metadata excludes workout notes and injury terms.
 - Do not add new categories of health data without reviewing consent, retention,
   and access controls.

@@ -59,10 +59,11 @@ still intentionally left for future work.
 - CSV path resolved from the project root, not the process CWD.
 - Dead `csv_loader.py`, `dependencies.py`, and empty `app/models` removed.
 - `pyproject.toml` with Ruff, mypy, pytest, and coverage configuration.
-- 266 tests covering rules, injuries, focus, fitness, dataset, GA, API, P0.1
+- 278 tests covering rules, injuries, focus, fitness, dataset, GA, API, P0.1
   auth/profile/consent, P0.2 plan lifecycle, P0.3 workout execution, P0.4
   feedback/safety, P1.1 progress, P1.2 trainer workspace, P1.3 notifications,
-  P2.1 free organizations, and SQLite migration upgrade/downgrade.
+  P2.1 free organizations, P2.2 research, and SQLite migration
+  upgrade/downgrade.
 - GitHub Actions CI for Python 3.11/3.12 and Docker build.
 - Docker runs as a non-root user and has a health check.
 - Structured JSON logging and `/ready`.
@@ -171,6 +172,22 @@ still intentionally left for future work.
 - No billing, payment, subscription, seat, or entitlement code by design.
 - Mounted only when `ORGANIZATIONS_ENABLED=true`.
 
+### P2.2 research, experimentation, and quality
+
+- SQLAlchemy models and Alembic migration for events, experiments, assignments,
+  versions, and quality reviews.
+- Consent-gated fixed event allowlist with flat PII-safe properties,
+  idempotency, and per-user rate limiting.
+- Deterministic SHA-256 experiment assignment with weighted variants, traffic,
+  pause/resume, and exposure tracking.
+- Dataset/algorithm version registry with GA/dataset metadata.
+- Descriptive aggregate report over an explicit window.
+- PII-redacted JSON export with HMAC pseudonyms, consent filtering, and hard
+  caps.
+- Platform-admin quality reviews with a fixed rubric; notes stay out of audit and
+  exports.
+- Mounted only when `RESEARCH_ENABLED=true`.
+
 
 ### Dependencies
 
@@ -218,6 +235,14 @@ still intentionally left for future work.
 - P2.1 has no billing/payments by design. Trainer/client assignment is not yet
   organization-scoped, so the P1.2 client list and the org summary span all
   organizations a trainer belongs to. The summary is aggregate-only.
+- P2.2 reports are descriptive only: no significance testing, confidence
+  intervals, or causal claims. Assignment uses hashing, so small samples may be
+  unbalanced.
+- P2.2 exposure is recorded when assignments are fetched, not when a UI is
+  rendered.
+- Research export is capped JSON, not a warehouse/streaming pipeline.
+- Quality review is a platform-admin record, not an external expert workflow.
+- Research events have no automatic retention job yet.
 - Share links are plan-wide, not per-version; no public discovery/social layer.
 - `/metrics` should be protected in a public deployment.
 - A shared Redis store is required for rate limiting across multiple instances.

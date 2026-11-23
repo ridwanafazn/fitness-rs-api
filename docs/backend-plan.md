@@ -342,13 +342,18 @@ intentionally removed; this is a free hobby/research project.
 - Aggregate-only admin summary; no health-data access from org membership.
 - Cross-organization isolation tests.
 
-# P2.2 — Experimentation and quality
+# P2.2 — Research, experimentation, and quality
 
-- Event schema, experiment assignment, feature flags.
-- Quality dashboard, expert review, unsafe-report analytics.
+**Status:** implemented behind `RESEARCH_ENABLED=false`, consent-gated. See
+`p2-2-research-and-quality.md` for the contract and tests.
+
+- Fixed, PII-free event allowlist with idempotency and per-user rate limits.
+- Deterministic experiments with weighted variants, traffic, pause/resume.
 - Dataset/algorithm version registry.
-- Export for research with PII redaction.
-- Reproducible experiment reports.
+- Aggregate research report over an explicit window.
+- PII-redacted JSON export with HMAC pseudonyms and hard caps.
+- Platform-admin quality reviews with a fixed rubric.
+- No significance testing or medical claims; descriptive only.
 
 # P2.3 — Scale and reliability
 

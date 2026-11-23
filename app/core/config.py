@@ -108,6 +108,11 @@ class Settings(BaseSettings):
     # P2.1 free organizations/collaboration (no billing, no payments).
     organizations_enabled: bool = False
 
+    # P2.2 research, experimentation, and quality (free, consent-gated).
+    research_enabled: bool = False
+    research_export_secret: Optional[str] = None
+    research_event_rate_limit_per_hour: int = Field(default=200, ge=1, le=5000)
+
     # Rate limiting.  memory:// is fine for a single instance; use a Redis URI
     # when running more than one worker/instance.
     rate_limit_enabled: bool = True
@@ -336,6 +341,19 @@ class Settings(BaseSettings):
             if self.is_production and not self.database_url:
                 raise ValueError(
                     "DATABASE_URL wajib di production saat organizations aktif"
+                )
+
+        if self.research_export_secret and len(self.research_export_secret) < 32:
+            raise ValueError("RESEARCH_EXPORT_SECRET minimal 32 karakter")
+
+        if self.research_enabled:
+            if not self.auth_profiles_enabled:
+                raise ValueError(
+                    "RESEARCH_ENABLED membutuhkan AUTH_PROFILES_ENABLED=true"
+                )
+            if self.is_production and not self.database_url:
+                raise ValueError(
+                    "DATABASE_URL wajib di production saat research aktif"
                 )
 
         return self

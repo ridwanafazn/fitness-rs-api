@@ -90,6 +90,15 @@ P2.1 organizations (free):
 - Organization membership does not grant health-data access; P1.2 scopes still
   apply.
 
+P2.2 research:
+
+- `RESEARCH_ENABLED=true` to mount event/experiment/report/export endpoints.
+- `RESEARCH_EXPORT_SECRET` (32+ chars) is required for exports; without it the
+  export endpoint returns `503`.
+- `RESEARCH_EVENT_RATE_LIMIT_PER_HOUR` defaults to 200.
+- User-facing endpoints require active `research_analytics` consent.
+- Reports/exports use explicit windows (max 366 days).
+
 See [`neon-auth.md`](neon-auth.md) for the Neon Auth token contract.
 
 Run the migration before shifting traffic:

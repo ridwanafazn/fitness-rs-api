@@ -242,6 +242,15 @@ Common codes:
 | `organization_invitation_conflict` | 409 | Duplicate invitation or already a member |
 | `organization_conflict` | 409 | Last-owner or archived-organization rule |
 | `organization_invalid` | 422 | Invalid organization payload |
+| `research_consent_required` | 403 | No active research consent |
+| `research_event_invalid` | 422 | Invalid event |
+| `experiment_not_found` | 404 | Experiment missing |
+| `experiment_conflict` | 409 | Duplicate experiment key/version |
+| `experiment_invalid` | 422 | Invalid experiment payload |
+| `quality_review_not_found` | 404 | Quality review missing |
+| `quality_review_invalid` | 422 | Invalid review subject/rubric |
+| `research_range_invalid` | 422 | Invalid/too-wide research window |
+| `research_export_not_configured` | 503 | Missing export secret |
 | `internal_error` | 500 | Unexpected server error |
 | `service_unavailable` | 503 | Computation timeout or auth provider unavailable |
 
@@ -284,6 +293,9 @@ All settings are environment variables (see `.env.example`):
 | `INTEGRATION_STATE_SECRET` | empty | HMAC secret for OAuth state/unsubscribe |
 | `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` / `STRAVA_REDIRECT_URI` | empty | Optional Strava OAuth |
 | `ORGANIZATIONS_ENABLED` | `false` | Mount P2.1 free organizations endpoints |
+| `RESEARCH_ENABLED` | `false` | Mount P2.2 research/experiment/export endpoints |
+| `RESEARCH_EXPORT_SECRET` | empty | 32+ char HMAC secret for research export pseudonyms |
+| `RESEARCH_EVENT_RATE_LIMIT_PER_HOUR` | `200` | Per-user event ingestion limit |
 | `CONSENT_POLICY_VERSION` | `2026-01` | Consent policy version |
 | `ACCOUNT_DELETION_GRACE_DAYS` | `30` | Hard-delete window (job future work) |
 | `RATE_LIMIT_ENABLED` | `true` | Enable the rate-limit middleware |
@@ -323,7 +335,10 @@ Production checklist:
    `TOKEN_ENCRYPTION_KEY`, and run `scripts/process_outbox.py` as a worker.
 14. For P2.1, set `ORGANIZATIONS_ENABLED=true`. There is no billing/payment
     configuration by design.
-15. Use an always-on host without cold starts; see [`docs/hosting.md`](docs/hosting.md).
+15. For P2.2, set `RESEARCH_ENABLED=true` and a 32+ character
+    `RESEARCH_EXPORT_SECRET`; events require active `research_analytics`
+    consent.
+16. Use an always-on host without cold starts; see [`docs/hosting.md`](docs/hosting.md).
 
 ---
 
@@ -601,6 +616,41 @@ See [`docs/p2-1-organizations.md`](docs/p2-1-organizations.md).
 
 ---
 
+## Research and experiments (P2.2)
+
+Mounted only when `RESEARCH_ENABLED=true`. All user-facing endpoints require an
+active `research_analytics` consent.
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/me/events` | Submit allowlisted, PII-free event |
+| GET | `/api/v1/me/experiments` | Deterministic assignments + exposure |
+| POST/GET | `/api/v1/admin/research/versions/register`, `/versions` | Dataset/algorithm registry |
+| GET | `/api/v1/admin/research/report` | Aggregate report for a window |
+| GET | `/api/v1/admin/research/export` | PII-redacted JSON export |
+| POST/GET | `/api/v1/admin/experiments` | Create/list experiments |
+| GET/PATCH | `/api/v1/admin/experiments/{id}` | Report/update experiment |
+| POST/GET | `/api/v1/admin/quality-reviews` | Create/list expert reviews |
+| GET/PATCH | `/api/v1/admin/quality-reviews/{id}` | Review detail/update |
+
+Rules:
+
+- Events are allowlisted, flat, rate-limited, and idempotent per user.
+- Sensitive property keys (email, note, injury, pain, IDs, tokens) are rejected.
+- Experiment assignment uses SHA-256 of `key:user_id`; 2–4 weighted variants,
+  0–100 traffic, persisted assignment, no rewrite on variant edits.
+- Reports require explicit `start`/`end` (max 366 days) and include only active
+  research consent.
+- Export requires `RESEARCH_EXPORT_SECRET`; user/plan/workout IDs become HMAC
+  pseudonyms. Comments, notes, reasons, emails, and titles are excluded.
+- Quality reviews are a platform-admin record with a fixed rubric; notes stay
+  internal.
+- No statistical-significance or medical claims are generated.
+
+See [`docs/p2-2-research-and-quality.md`](docs/p2-2-research-and-quality.md).
+
+---
+
 ## Quality gates
 
 ```bash
@@ -640,6 +690,9 @@ The test suite covers:
   calendar public/private, unsubscribe, Strava OAuth, unsupported providers
 - P2.1 organizations: roles, invitations, expiry/replay, last-owner protection,
   cross-org isolation, aggregate summary, PII-free audit
+- P2.2 research: consent gating, event allowlist/PII/idempotency/rate limit,
+  deterministic assignment, pause/resume, report counts, version registry,
+  quality reviews, redacted export, OpenAPI
 - Alembic upgrade/downgrade on a fresh SQLite database
 
 CI runs the same gates on Python 3.11 and 3.12 and builds/smokes the Docker
@@ -658,9 +711,9 @@ app/
   domain/         pure rules, focus mapping, injury taxonomy, fitness
   rules/          compatibility facade for the old rule-engine API
   schemas/        Pydantic request/response models
-  services/       dataset loader, filter, GA, orchestration, identity, plans, workouts, feedback, progress, trainer, notifications, integrations, organizations, audit
+  services/       dataset loader, filter, GA, orchestration, identity, plans, workouts, feedback, progress, trainer, notifications, integrations, organizations, research, audit
 data/             222-row curated exercise dataset
-migrations/       Alembic environment, P0.1 identity, P0.2 plans, P0.3 workouts, P0.4 feedback, P1.1 progress, P1.2 trainer, P1.3 notifications, P2.1 organizations
+migrations/       Alembic environment, P0.1 identity, P0.2 plans, P0.3 workouts, P0.4 feedback, P1.1 progress, P1.2 trainer, P1.3 notifications, P2.1 organizations, P2.2 research
 tests/            unit, integration, and API tests
 docs/             algorithm, API, deployment, hosting, auth, audit, and product plans
 scripts/          benchmark, dev-token, progress-rebuild, and outbox helpers
@@ -688,6 +741,7 @@ Start with:
 - [`docs/p1-2-trainer-workspace.md`](docs/p1-2-trainer-workspace.md) — implemented P1.2 contract
 - [`docs/p1-3-notifications-and-integrations.md`](docs/p1-3-notifications-and-integrations.md) — implemented P1.3 contract
 - [`docs/p2-1-organizations.md`](docs/p2-1-organizations.md) — implemented P2.1 free organization contract
+- [`docs/p2-2-research-and-quality.md`](docs/p2-2-research-and-quality.md) — implemented P2.2 research contract
 - [`docs/neon-auth.md`](docs/neon-auth.md) — Neon Auth setup and JWT contract
 - [`docs/hosting.md`](docs/hosting.md) — always-on hosting without cold starts
 
@@ -720,10 +774,11 @@ Container/platform settings:
   CPU-bound
 - set `TRUST_PROXY_HEADERS=true`
 - set `CORS_ORIGINS` and `API_KEY` in the dashboard
-- for P0.1–P2.1: set `DATABASE_URL`, run `alembic upgrade head`, then enable
+- for P0.1–P2.2: set `DATABASE_URL`, run `alembic upgrade head`, then enable
   `AUTH_*`/`NEON_AUTH_BASE_URL`, `PLANS_ENABLED`, `WORKOUTS_ENABLED`,
   `FEEDBACK_ENABLED`, `PROGRESS_ENABLED`, `TRAINER_ENABLED`,
-  `NOTIFICATIONS_ENABLED`, and `ORGANIZATIONS_ENABLED` when ready
+  `NOTIFICATIONS_ENABLED`, `ORGANIZATIONS_ENABLED`, and `RESEARCH_ENABLED` when
+  ready
 
 See [`docs/deployment.md`](docs/deployment.md) and
 [`docs/hosting.md`](docs/hosting.md) for details.

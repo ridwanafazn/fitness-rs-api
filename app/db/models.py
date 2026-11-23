@@ -1349,3 +1349,171 @@ class OrganizationInvitation(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
     )
+
+
+class ResearchEvent(Base):
+    __tablename__ = "research_events"
+    __table_args__ = (
+        Index(
+            "uq_research_events_owner_idempotency",
+            "owner_user_id",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text("idempotency_key IS NOT NULL"),
+            sqlite_where=text("idempotency_key IS NOT NULL"),
+        ),
+        Index("ix_research_events_owner_occurred", "owner_user_id", "occurred_at"),
+        Index("ix_research_events_name_occurred", "name", "occurred_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    properties: Mapped[Dict[str, Any]] = mapped_column(
+        json_type(), default=dict, nullable=False
+    )
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    idempotency_key: Mapped[Optional[str]] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+
+class Experiment(Base):
+    __tablename__ = "experiments"
+    __table_args__ = (
+        UniqueConstraint("key", name="uq_experiments_key"),
+        CheckConstraint(
+            "status IN ('draft', 'running', 'paused', 'completed')",
+            name="ck_experiments_status",
+        ),
+        CheckConstraint(
+            "traffic_percent >= 0 AND traffic_percent <= 100",
+            name="ck_experiments_traffic",
+        ),
+        Index("ix_experiments_status", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    key: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16), default="draft", nullable=False)
+    variants: Mapped[List[Dict[str, Any]]] = mapped_column(
+        json_type(), default=list, nullable=False
+    )
+    traffic_percent: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="SET NULL"),
+    )
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+
+class ExperimentAssignment(Base):
+    __tablename__ = "experiment_assignments"
+    __table_args__ = (
+        UniqueConstraint(
+            "experiment_id",
+            "user_id",
+            name="uq_experiment_assignments_experiment_user",
+        ),
+        Index("ix_experiment_assignments_user", "user_id"),
+        Index(
+            "ix_experiment_assignments_experiment_variant",
+            "experiment_id",
+            "variant",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    experiment_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("experiments.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    variant: Mapped[str] = mapped_column(String(64), nullable=False)
+    assigned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    exposed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class ResearchVersion(Base):
+    __tablename__ = "research_versions"
+    __table_args__ = (
+        UniqueConstraint("kind", "version", name="uq_research_versions_kind_version"),
+        CheckConstraint(
+            "kind IN ('dataset', 'algorithm')",
+            name="ck_research_versions_kind",
+        ),
+        Index("ix_research_versions_kind_created", "kind", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    version: Mapped[str] = mapped_column(String(64), nullable=False)
+    checksum: Mapped[str] = mapped_column(String(64), nullable=False)
+    row_count: Mapped[Optional[int]] = mapped_column(Integer)
+    metadata_json: Mapped[Dict[str, Any]] = mapped_column(
+        json_type(), default=dict, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+
+class QualityReview(Base):
+    __tablename__ = "quality_reviews"
+    __table_args__ = (
+        CheckConstraint(
+            "subject_type IN ('plan_version', 'dataset_version', 'algorithm_version')",
+            name="ck_quality_reviews_subject_type",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'in_review', 'approved', 'changes_requested')",
+            name="ck_quality_reviews_status",
+        ),
+        Index("ix_quality_reviews_subject", "subject_type", "subject_id"),
+        Index("ix_quality_reviews_status", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    reviewer_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="SET NULL"),
+    )
+    subject_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    subject_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="pending", nullable=False)
+    rubric: Mapped[Dict[str, Any]] = mapped_column(
+        json_type(), default=dict, nullable=False
+    )
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )

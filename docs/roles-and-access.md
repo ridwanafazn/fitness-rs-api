@@ -180,6 +180,7 @@ authorization. Check ownership and feature flags in the service layer.
 | Write plan review | no | no | consent | no | yes | scoped |
 | View org aggregate | no | no | no | yes | yes | scoped |
 | Manage org members/settings | no | no | no | yes | yes | scoped |
+| Manage research/quality | no | no | no | no | yes | no |
 | Triage safety reports | no | no | related only | aggregate | yes | no |
 | Configure dataset/algorithm | no | no | no | no | yes | no |
 | Export own data | local | yes | yes | yes | yes | no |
@@ -272,6 +273,8 @@ org:manage
 org:invite
 org:member:manage
 org:summary:read
+research:admin
+research:export
 safety:review
 config:write
 audit:read
