@@ -30,7 +30,7 @@ pydantic==2.14.4
 pydantic-settings==2.16.3
 pydantic_core==2.50.5
 pycparser==3.12
-pygad==3.9.0
+pygad==3.9.2
 PyJWT==2.15.1
 python-dotenv==1.2.4
 PyYAML==6.0.4
