@@ -52,6 +52,8 @@ services:
         value: "false"
       - key: RESEARCH_ENABLED
         value: "false"
+      - key: OPS_ENABLED
+        value: "false"
       - key: RATE_LIMIT_ENABLED
         value: "true"
       - key: RATE_LIMIT

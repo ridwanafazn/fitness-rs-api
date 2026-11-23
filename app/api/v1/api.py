@@ -13,6 +13,7 @@ from app.api import (
     feedback,
     me,
     notifications,
+    ops,
     organizations,
     plans,
     progress,
@@ -143,6 +144,13 @@ def build_api_router(settings: Settings) -> APIRouter:
             research.admin_router,
             prefix="/admin",
             tags=["research"],
+        )
+
+    if settings.ops_enabled:
+        router.include_router(
+            ops.router,
+            prefix="/admin",
+            tags=["ops"],
         )
 
     return router

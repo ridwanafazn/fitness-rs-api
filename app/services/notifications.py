@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import secrets
 import urllib.request
 import uuid
@@ -11,7 +12,7 @@ from datetime import UTC, datetime, time, timedelta
 from typing import Dict, List, Mapping, Optional, Tuple
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.crypto import (
@@ -450,29 +451,54 @@ def _deliver(item: NotificationOutbox, *, mode: str, webhook_url: Optional[str])
     raise RuntimeError("mode pengiriman notifikasi tidak aktif")
 
 
+def default_worker_id() -> str:
+    return f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
+
+
 def process_outbox(
     session: Session,
     *,
     mode: str,
     webhook_url: Optional[str],
     limit: int = 50,
+    worker_id: Optional[str] = None,
+    lease_seconds: int = 300,
 ) -> Dict[str, int]:
     if mode == "disabled":
         return {"processed": 0, "sent": 0, "retry": 0, "failed": 0}
 
     now = utcnow()
-    items = list(
-        session.scalars(
-            select(NotificationOutbox)
-            .where(
-                NotificationOutbox.status.in_(("pending", "failed")),
-                NotificationOutbox.attempts < NotificationOutbox.max_attempts,
-                NotificationOutbox.scheduled_at <= now,
-            )
-            .order_by(NotificationOutbox.scheduled_at)
-            .limit(min(max(limit, 1), 200))
-        ).all()
+    lease_seconds = min(max(int(lease_seconds), 30), 3600)
+    worker = (worker_id or default_worker_id())[:64]
+    claim_stmt = (
+        select(NotificationOutbox)
+        .where(
+            NotificationOutbox.status.in_(("pending", "failed")),
+            NotificationOutbox.attempts < NotificationOutbox.max_attempts,
+            NotificationOutbox.scheduled_at <= now,
+            or_(
+                NotificationOutbox.locked_until.is_(None),
+                NotificationOutbox.locked_until < now,
+            ),
+        )
+        .order_by(NotificationOutbox.scheduled_at)
+        .limit(min(max(limit, 1), 200))
     )
+    if session.get_bind().dialect.name == "postgresql":
+        claim_stmt = claim_stmt.with_for_update(skip_locked=True)
+
+    items = list(session.scalars(claim_stmt).all())
+    if not items:
+        return {"processed": 0, "sent": 0, "retry": 0, "failed": 0}
+
+    lock_until = now + timedelta(seconds=lease_seconds)
+    for item in items:
+        item.locked_until = lock_until
+        item.locked_by = worker
+    # Make the lease visible before delivery so another worker can skip these
+    # rows. A crash after this point is recovered when the lease expires.
+    session.commit()
+
     sent = 0
     retry = 0
     failed = 0
@@ -496,6 +522,9 @@ def process_outbox(
                     minutes=min(60, 2**item.attempts)
                 )
                 retry += 1
+        finally:
+            item.locked_until = None
+            item.locked_by = None
         item.updated_at = utcnow()
 
     commit_or_conflict(session)

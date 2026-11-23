@@ -86,6 +86,11 @@ def test_alembic_upgrade_and_downgrade_on_sqlite(tmp_path: Path) -> None:
 
         role_indexes = {index["name"] for index in inspector.get_indexes("user_roles")}
         assert "uq_user_roles_user_role_platform" in role_indexes
+
+        outbox_columns = {
+            column["name"] for column in inspector.get_columns("notification_outbox")
+        }
+        assert {"locked_until", "locked_by"} <= outbox_columns
     finally:
         engine.dispose()
 

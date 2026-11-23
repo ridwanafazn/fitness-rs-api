@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 SessionFactory = sessionmaker[Session]
 
 
-def _engine_kwargs(database_url: str) -> dict:
+def _engine_kwargs(database_url: str, settings: Settings) -> dict:
     if database_url.startswith("sqlite"):
         kwargs: dict = {"connect_args": {"check_same_thread": False}}
         if ":memory:" in database_url:
@@ -31,17 +31,18 @@ def _engine_kwargs(database_url: str) -> dict:
         return kwargs
     return {
         "pool_pre_ping": True,
-        "pool_size": 5,
-        "max_overflow": 5,
-        "pool_recycle": 1800,
-        "connect_args": {"connect_timeout": 5},
+        "pool_size": settings.db_pool_size,
+        "max_overflow": settings.db_max_overflow,
+        "pool_timeout": settings.db_pool_timeout_seconds,
+        "pool_recycle": settings.db_pool_recycle_seconds,
+        "connect_args": {"connect_timeout": settings.db_connect_timeout_seconds},
     }
 
 
-def create_db_engine(database_url: str) -> Engine:
+def create_db_engine(database_url: str, settings: Settings) -> Engine:
     """Create a sync SQLAlchemy engine with sensible production defaults."""
 
-    engine = create_engine(database_url, **_engine_kwargs(database_url))
+    engine = create_engine(database_url, **_engine_kwargs(database_url, settings))
 
     if database_url.startswith("sqlite"):
 
@@ -69,7 +70,7 @@ def init_database(settings: Settings) -> tuple[Optional[Engine], Optional[Sessio
     if not settings.database_url:
         return None, None
 
-    engine = create_db_engine(settings.database_url)
+    engine = create_db_engine(settings.database_url, settings)
 
     # Production schema changes go through Alembic.  Auto-create is a local
     # and test convenience only and is rejected in production by Settings.

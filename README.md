@@ -251,6 +251,7 @@ Common codes:
 | `quality_review_invalid` | 422 | Invalid review subject/rubric |
 | `research_range_invalid` | 422 | Invalid/too-wide research window |
 | `research_export_not_configured` | 503 | Missing export secret |
+| `rate_limit_unavailable` | 503 | Fail-closed rate-limit backend unavailable |
 | `internal_error` | 500 | Unexpected server error |
 | `service_unavailable` | 503 | Computation timeout or auth provider unavailable |
 
@@ -269,6 +270,9 @@ All settings are environment variables (see `.env.example`):
 | `API_KEY` | empty | Optional `X-API-Key` gate |
 | `DATABASE_URL` | empty | Postgres/SQLite URL; required for P0.1 |
 | `DB_AUTO_CREATE` | `false` | Create tables locally/tests only; use Alembic in production |
+| `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` | `5` / `5` | Postgres pool sizing |
+| `DB_POOL_TIMEOUT_SECONDS` / `DB_CONNECT_TIMEOUT_SECONDS` | `10` / `5` | Connection wait/connect timeouts |
+| `DB_POOL_RECYCLE_SECONDS` | `1800` | Recycle pooled connections |
 | `AUTH_ENABLED` | `false` | Validate OIDC bearer tokens |
 | `AUTH_PROFILES_ENABLED` | `false` | Mount `/api/v1/me` endpoints |
 | `AUTH_ISSUER` | empty | OIDC issuer |
@@ -296,11 +300,14 @@ All settings are environment variables (see `.env.example`):
 | `RESEARCH_ENABLED` | `false` | Mount P2.2 research/experiment/export endpoints |
 | `RESEARCH_EXPORT_SECRET` | empty | 32+ char HMAC secret for research export pseudonyms |
 | `RESEARCH_EVENT_RATE_LIMIT_PER_HOUR` | `200` | Per-user event ingestion limit |
+| `OPS_ENABLED` | `false` | Mount platform-admin ops status endpoint |
+| `NOTIFICATION_OUTBOX_LEASE_SECONDS` | `300` | Worker claim lease |
 | `CONSENT_POLICY_VERSION` | `2026-01` | Consent policy version |
 | `ACCOUNT_DELETION_GRACE_DAYS` | `30` | Hard-delete window (job future work) |
 | `RATE_LIMIT_ENABLED` | `true` | Enable the rate-limit middleware |
 | `RATE_LIMIT` | `120/minute` | Default limit |
-| `RATE_LIMIT_STORAGE_URI` | `memory://` | Use Redis for multiple instances |
+| `RATE_LIMIT_STORAGE_URI` | `memory://` | Redis URI for multi-instance limiting |
+| `RATE_LIMIT_FAIL_OPEN` | `true` | Serve traffic if the rate-limit backend is down |
 | `TRUST_PROXY_HEADERS` | `true` | Trust `X-Forwarded-For` only behind your proxy |
 | `MAX_REQUEST_BYTES` | `16384` | Reject oversized bodies |
 | `REQUEST_TIMEOUT_SECONDS` | `15` | Recommendation timeout |
@@ -338,7 +345,9 @@ Production checklist:
 15. For P2.2, set `RESEARCH_ENABLED=true` and a 32+ character
     `RESEARCH_EXPORT_SECRET`; events require active `research_analytics`
     consent.
-16. Use an always-on host without cold starts; see [`docs/hosting.md`](docs/hosting.md).
+16. For P2.3, set `OPS_ENABLED=true`, run `scripts/worker.py` for the outbox,
+    and use `/admin/ops/status` plus `/ready` for monitoring.
+17. Use an always-on host without cold starts; see [`docs/hosting.md`](docs/hosting.md).
 
 ---
 
@@ -651,6 +660,58 @@ See [`docs/p2-2-research-and-quality.md`](docs/p2-2-research-and-quality.md).
 
 ---
 
+## Operations and reliability (P2.3)
+
+Mounted only when `OPS_ENABLED=true`:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/admin/ops/status` | DB/migration/outbox/Redis health |
+
+`/ready` now also reports:
+
+```json
+{
+  "status": "ready",
+  "database": "ok",
+  "redis": "not_configured",
+  "rate_limit": "memory",
+  "degraded": false
+}
+```
+
+Components:
+
+- Postgres pool size/overflow/timeouts/recycle are configurable.
+- Redis is supported for shared rate limiting (`redis==8.1.0`).
+- Redis failure is fail-open by default (`X-RateLimit-Degraded: 1`);
+  `RATE_LIMIT_FAIL_OPEN=false` fails closed with
+  `503 rate_limit_unavailable`.
+- Outbox rows have `locked_until`/`locked_by`; Postgres uses
+  `FOR UPDATE SKIP LOCKED`.
+- `scripts/worker.py` runs reminders + outbox with graceful shutdown.
+- `scripts/ops_status.py` prints ops JSON and exits non-zero when degraded.
+- `scripts/load_test.py` is a dependency-free concurrency smoke test.
+- `scripts/verify_restore.py` validates a restored DB before cutover.
+
+SLO targets, alerts, runbook, and Neon PITR/branch restore steps are in
+[`docs/p2-3-scale-and-reliability.md`](docs/p2-3-scale-and-reliability.md).
+
+Worker:
+
+```bash
+DATABASE_URL=... NOTIFICATIONS_ENABLED=true python scripts/worker.py
+DATABASE_URL=... NOTIFICATIONS_ENABLED=true python scripts/worker.py --once
+```
+
+Load smoke:
+
+```bash
+python scripts/load_test.py --path /health --requests 500 --concurrency 50
+```
+
+---
+
 ## Quality gates
 
 ```bash
@@ -693,6 +754,8 @@ The test suite covers:
 - P2.2 research: consent gating, event allowlist/PII/idempotency/rate limit,
   deterministic assignment, pause/resume, report counts, version registry,
   quality reviews, redacted export, OpenAPI
+- P2.3 ops: admin status, outbox lease/expiry/skip, Redis degraded state,
+  rate-limit fail-open/fail-closed, readiness fields
 - Alembic upgrade/downgrade on a fresh SQLite database
 
 CI runs the same gates on Python 3.11 and 3.12 and builds/smokes the Docker
@@ -711,12 +774,12 @@ app/
   domain/         pure rules, focus mapping, injury taxonomy, fitness
   rules/          compatibility facade for the old rule-engine API
   schemas/        Pydantic request/response models
-  services/       dataset loader, filter, GA, orchestration, identity, plans, workouts, feedback, progress, trainer, notifications, integrations, organizations, research, audit
+  services/       dataset loader, filter, GA, orchestration, identity, plans, workouts, feedback, progress, trainer, notifications, integrations, organizations, research, ops, audit
 data/             222-row curated exercise dataset
-migrations/       Alembic environment, P0.1 identity, P0.2 plans, P0.3 workouts, P0.4 feedback, P1.1 progress, P1.2 trainer, P1.3 notifications, P2.1 organizations, P2.2 research
+migrations/       Alembic environment, P0.1 identity, P0.2 plans, P0.3 workouts, P0.4 feedback, P1.1 progress, P1.2 trainer, P1.3 notifications, P2.1 organizations, P2.2 research, P2.3 outbox lease
 tests/            unit, integration, and API tests
 docs/             algorithm, API, deployment, hosting, auth, audit, and product plans
-scripts/          benchmark, dev-token, progress-rebuild, and outbox helpers
+scripts/          benchmark, dev-token, progress-rebuild, outbox, worker, ops-status, load-test, restore-verify helpers
 ```
 
 ---
@@ -742,6 +805,7 @@ Start with:
 - [`docs/p1-3-notifications-and-integrations.md`](docs/p1-3-notifications-and-integrations.md) — implemented P1.3 contract
 - [`docs/p2-1-organizations.md`](docs/p2-1-organizations.md) — implemented P2.1 free organization contract
 - [`docs/p2-2-research-and-quality.md`](docs/p2-2-research-and-quality.md) — implemented P2.2 research contract
+- [`docs/p2-3-scale-and-reliability.md`](docs/p2-3-scale-and-reliability.md) — implemented P2.3 ops/SLO/restore contract
 - [`docs/neon-auth.md`](docs/neon-auth.md) — Neon Auth setup and JWT contract
 - [`docs/hosting.md`](docs/hosting.md) — always-on hosting without cold starts
 
@@ -774,11 +838,11 @@ Container/platform settings:
   CPU-bound
 - set `TRUST_PROXY_HEADERS=true`
 - set `CORS_ORIGINS` and `API_KEY` in the dashboard
-- for P0.1–P2.2: set `DATABASE_URL`, run `alembic upgrade head`, then enable
+- for P0.1–P2.3: set `DATABASE_URL`, run `alembic upgrade head`, then enable
   `AUTH_*`/`NEON_AUTH_BASE_URL`, `PLANS_ENABLED`, `WORKOUTS_ENABLED`,
   `FEEDBACK_ENABLED`, `PROGRESS_ENABLED`, `TRAINER_ENABLED`,
-  `NOTIFICATIONS_ENABLED`, `ORGANIZATIONS_ENABLED`, and `RESEARCH_ENABLED` when
-  ready
+  `NOTIFICATIONS_ENABLED`, `ORGANIZATIONS_ENABLED`, `RESEARCH_ENABLED`, and
+  `OPS_ENABLED` when ready; run `scripts/worker.py` for the outbox
 
 See [`docs/deployment.md`](docs/deployment.md) and
 [`docs/hosting.md`](docs/hosting.md) for details.

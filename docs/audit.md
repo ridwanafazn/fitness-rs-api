@@ -59,11 +59,11 @@ still intentionally left for future work.
 - CSV path resolved from the project root, not the process CWD.
 - Dead `csv_loader.py`, `dependencies.py`, and empty `app/models` removed.
 - `pyproject.toml` with Ruff, mypy, pytest, and coverage configuration.
-- 278 tests covering rules, injuries, focus, fitness, dataset, GA, API, P0.1
+- 288 tests covering rules, injuries, focus, fitness, dataset, GA, API, P0.1
   auth/profile/consent, P0.2 plan lifecycle, P0.3 workout execution, P0.4
   feedback/safety, P1.1 progress, P1.2 trainer workspace, P1.3 notifications,
-  P2.1 free organizations, P2.2 research, and SQLite migration
-  upgrade/downgrade.
+  P2.1 free organizations, P2.2 research, P2.3 ops/outbox lease, and SQLite
+  migration upgrade/downgrade.
 - GitHub Actions CI for Python 3.11/3.12 and Docker build.
 - Docker runs as a non-root user and has a health check.
 - Structured JSON logging and `/ready`.
@@ -188,6 +188,21 @@ still intentionally left for future work.
   exports.
 - Mounted only when `RESEARCH_ENABLED=true`.
 
+### P2.3 scale and reliability
+
+- Configurable Postgres pool, overflow, timeout, recycle, and connect timeout.
+- Optional Redis rate limiting (`redis==8.1.0`) with fail-open default,
+  fail-closed option, degraded response header, and Prometheus counter.
+- `/ready` reports database/Redis/rate-limit state without making Redis fatal.
+- Platform-admin `/api/v1/admin/ops/status` with migration head and outbox
+  backlog.
+- Outbox worker lease migration with `locked_until`/`locked_by`;
+  `FOR UPDATE SKIP LOCKED` on Postgres.
+- `scripts/worker.py`, `scripts/ops_status.py`, `scripts/load_test.py`, and
+  `scripts/verify_restore.py`.
+- SLO/alert/runbook and Neon PITR/branch restore procedure.
+- No repository-managed backups, read-replica routing, or OTel exporter.
+
 
 ### Dependencies
 
@@ -243,6 +258,16 @@ still intentionally left for future work.
 - Research export is capped JSON, not a warehouse/streaming pipeline.
 - Quality review is a platform-admin record, not an external expert workflow.
 - Research events have no automatic retention job yet.
+- P2.3 uses provider backups (Neon PITR/branches); the repository only verifies a
+  restored branch. No read replicas are wired.
+- P2.3 has no OpenTelemetry exporter or distributed tracing; observability is
+  request IDs, structured logs, Prometheus HTTP metrics, `/ready`, and
+  `/admin/ops/status`.
+- Outbox delivery is at-least-once; duplicate sends are possible after a crash.
+- Redis is optional and not provisioned by the repository; without it, rate
+  limiting is per-process.
+- The load-test script is a smoke test, not a capacity benchmark.
+- SLO targets are informal for the free hobby deployment.
 - Share links are plan-wide, not per-version; no public discovery/social layer.
 - `/metrics` should be protected in a public deployment.
 - A shared Redis store is required for rate limiting across multiple instances.

@@ -357,12 +357,17 @@ intentionally removed; this is a free hobby/research project.
 
 # P2.3 — Scale and reliability
 
-- Redis rate limit/cache/queue.
-- Worker for PDF/notifications/aggregates.
-- Read replica, backups, restore tests.
-- SLOs, tracing, metrics, alerts, runbooks.
-- Load test 50–100 concurrent users.
-- Security review and dependency audit.
+**Status:** implemented behind `OPS_ENABLED=false` for the admin status endpoint;
+worker/pool/rate-limit/load/restore tooling is available. See
+`p2-3-scale-and-reliability.md`.
+
+- Postgres pool/connect/recycle settings.
+- Optional Redis rate limiting with fail-open/fail-closed and degraded headers.
+- `/ready` reports DB/Redis; `/admin/ops/status` reports migration head/backlog.
+- Outbox worker lease (`SKIP LOCKED`) and `scripts/worker.py`.
+- `scripts/ops_status.py`, `scripts/load_test.py`, `scripts/verify_restore.py`.
+- SLO/alert/runbook and Neon PITR/branch restore procedure.
+- No repository-managed backups, read replicas, or distributed tracing exporter.
 
 ---
 

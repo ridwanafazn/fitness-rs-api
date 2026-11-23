@@ -17,6 +17,8 @@ This directory is the planning and implementation source of truth.
   `ORGANIZATIONS_ENABLED=false` (no billing/payments).
 - **P2.2** research/experiments/quality is implemented behind
   `RESEARCH_ENABLED=false`, consent-gated.
+- **P2.3** scale/reliability is implemented behind `OPS_ENABLED=false` for the
+  admin ops status; worker/pool/rate-limit/load/restore tooling is available.
 - Neon Auth is the selected identity provider; see `neon-auth.md`.
 
 The existing recommendation API remains unchanged and public.
@@ -38,6 +40,7 @@ The existing recommendation API remains unchanged and public.
 | [`p1-3-notifications-and-integrations.md`](p1-3-notifications-and-integrations.md) | Implemented P1.3 contract |
 | [`p2-1-organizations.md`](p2-1-organizations.md) | Implemented P2.1 free organization contract |
 | [`p2-2-research-and-quality.md`](p2-2-research-and-quality.md) | Implemented P2.2 research/experiment/export contract |
+| [`p2-3-scale-and-reliability.md`](p2-3-scale-and-reliability.md) | Implemented P2.3 ops, worker, SLO, and restore contract |
 | [`neon-auth.md`](neon-auth.md) | Neon Auth setup and JWT contract |
 | [`provisioned-resources.md`](provisioned-resources.md) | Neon project/Auth IDs, migration head, local env loading |
 | [`hosting.md`](hosting.md) | Always-on cloud hosting without cold starts; free/PAYG options |
@@ -49,7 +52,7 @@ The existing recommendation API remains unchanged and public.
 
 - FastAPI `0.165`, Starlette `1.10`, Pydantic `2.14`, Python 3.11+
 - SQLAlchemy 2 + Alembic + psycopg 3 + PyJWT + ReportLab
-- 278 tests passing
+- 288 tests passing
 - Live API on Render, live frontend on Cloudflare Pages (`jymz.pages.dev`)
 - Existing endpoints remain compatible:
   - `POST /api/v1/recommendation/` (201)
@@ -132,6 +135,9 @@ The existing recommendation API remains unchanged and public.
   - `GET/PATCH /api/v1/admin/experiments/{id}`
   - `POST/GET /api/v1/admin/quality-reviews`
   - `GET/PATCH /api/v1/admin/quality-reviews/{id}`
+- P2.3 endpoint (`OPS_ENABLED=true`):
+  - `GET /api/v1/admin/ops/status`
+  - `/ready` includes `database`, `redis`, `rate_limit`, `degraded`
 
 ## Implementation status
 
@@ -146,7 +152,7 @@ The existing recommendation API remains unchanged and public.
 | P1.3 Notifications & integrations | Implemented behind feature flag; log/webhook delivery + Strava only |
 | P2.1 Organizations (free) | Implemented behind feature flag; no billing/payments, aggregate-only admin summary |
 | P2.2 Experimentation & quality | Implemented behind feature flag; consent-gated events, deterministic experiments, redacted export |
-| P2.3 Scale & reliability | Next |
+| P2.3 Scale & reliability | Implemented ops status, worker lease, pool/Redis resilience, load/restore tooling, SLO/runbook |
 
 ## Decision status
 
@@ -174,4 +180,5 @@ The existing recommendation API remains unchanged and public.
 5. Read `neon-auth.md` before enabling login.
 6. Read `p2-1-organizations.md` before enabling organizations.
 7. Read `p2-2-research-and-quality.md` before enabling research.
-8. Read `hosting.md` before choosing a production host.
+8. Read `p2-3-scale-and-reliability.md` before enabling ops/worker or running a restore.
+9. Read `hosting.md` before choosing a production host.

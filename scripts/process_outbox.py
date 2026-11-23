@@ -26,6 +26,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Process notifications.")
     parser.add_argument("--limit", type=int, default=100)
     parser.add_argument("--no-reminders", action="store_true")
+    parser.add_argument("--worker-id", default=None)
+    parser.add_argument("--lease-seconds", type=int, default=None)
     args = parser.parse_args()
 
     settings = get_settings()
@@ -51,6 +53,12 @@ def main() -> int:
             mode=settings.notification_delivery_mode,
             webhook_url=settings.notification_webhook_url,
             limit=min(max(args.limit, 1), 200),
+            worker_id=args.worker_id,
+            lease_seconds=(
+                args.lease_seconds
+                if args.lease_seconds is not None
+                else settings.notification_outbox_lease_seconds
+            ),
         )
     finally:
         session.close()

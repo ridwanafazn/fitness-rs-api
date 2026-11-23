@@ -80,6 +80,10 @@ maintainer privately (GitHub: `@ridwanafazn`) with:
   user/plan/workout IDs with HMAC pseudonyms; titles, comments, notes, reasons,
   emails, and raw IDs are excluded. Quality-review notes and export secrets never
   enter audit metadata.
+- P2.3 ops status is platform-admin only and exposes no PII or secrets. Redis
+  rate-limit failure is fail-open by default; this favours availability over
+  strict limiting. Set `RATE_LIMIT_FAIL_OPEN=false` if rejecting traffic during
+  a Redis outage is preferred. Outbox delivery is at-least-once.
 - Audit metadata excludes workout notes and injury terms.
 - Do not add new categories of health data without reviewing consent, retention,
   and access controls.

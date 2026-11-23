@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     database_url: Optional[str] = None
     # Convenience for local/test only. Production schema changes use Alembic.
     db_auto_create: bool = False
+    # Postgres pool and connection resilience (ignored by SQLite).
+    db_pool_size: int = Field(default=5, ge=1, le=50)
+    db_max_overflow: int = Field(default=5, ge=0, le=50)
+    db_pool_timeout_seconds: int = Field(default=10, ge=1, le=120)
+    db_pool_recycle_seconds: int = Field(default=1800, ge=60, le=86400)
+    db_connect_timeout_seconds: int = Field(default=5, ge=1, le=60)
 
     # OIDC authentication and the P0.1 profile/consent endpoints.
     auth_enabled: bool = False
@@ -113,11 +119,18 @@ class Settings(BaseSettings):
     research_export_secret: Optional[str] = None
     research_event_rate_limit_per_hour: int = Field(default=200, ge=1, le=5000)
 
+    # P2.3 operations/worker.
+    ops_enabled: bool = False
+    notification_outbox_lease_seconds: int = Field(default=300, ge=30, le=3600)
+
     # Rate limiting.  memory:// is fine for a single instance; use a Redis URI
     # when running more than one worker/instance.
     rate_limit_enabled: bool = True
     rate_limit: str = "120/minute"
     rate_limit_storage_uri: str = "memory://"
+    # If Redis is unavailable, keep serving traffic without shared limiting.
+    # This favours availability for a hobby deployment; set false to fail closed.
+    rate_limit_fail_open: bool = True
     # Render/Cloud Run sit in front of the app, so the forwarded client IP is
     # needed to avoid putting every user in one shared bucket. Set this to
     # false only when the app is directly exposed.
@@ -354,6 +367,16 @@ class Settings(BaseSettings):
             if self.is_production and not self.database_url:
                 raise ValueError(
                     "DATABASE_URL wajib di production saat research aktif"
+                )
+
+        if self.ops_enabled:
+            if not self.auth_profiles_enabled:
+                raise ValueError(
+                    "OPS_ENABLED membutuhkan AUTH_PROFILES_ENABLED=true"
+                )
+            if self.is_production and not self.database_url:
+                raise ValueError(
+                    "DATABASE_URL wajib di production saat ops aktif"
                 )
 
         return self

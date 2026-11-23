@@ -384,7 +384,7 @@ devices
 notification_outbox
   id, owner_user_id, channel, template, payload jsonb, scheduled_at,
   status, attempts, max_attempts, idempotency_key, last_error,
-  sent_at, created_at, updated_at
+  sent_at, locked_until, locked_by, created_at, updated_at
 
 integration_tokens
   id, owner_user_id, provider, external_user_id,
@@ -401,6 +401,22 @@ Rules:
 - Calendar/unsubscribe tokens are random or HMAC-signed and contain no PII.
 - Quiet hours may wrap midnight; due reminders are suppressed inside them.
 - Raw device/integration tokens never appear in logs or audit metadata.
+- `locked_until`/`locked_by` are worker leases; Postgres claims with
+  `FOR UPDATE SKIP LOCKED`, and expired leases are reclaimable.
+- Delivery is at-least-once; a crash after external delivery can duplicate a
+  notification.
+
+---
+
+## P2.3 reliability notes (no new domain tables)
+
+- Postgres pool/connect settings are environment-driven.
+- Redis is optional for shared rate limiting; failure is fail-open by default.
+- `/ready` reports database and Redis state; `/admin/ops/status` reports
+  migration head and outbox backlog.
+- No read-replica routing, queue service, or distributed tracing table exists.
+- Backup/PITR and restore are provider operations (Neon branches); the
+  repository provides `scripts/verify_restore.py` only.
 
 ---
 
@@ -528,7 +544,8 @@ Rules:
     `organization_invitations`
 15. `research_events` → `experiments` → `experiment_assignments` →
     `research_versions` → `quality_reviews`
-16. P2.3 operational infrastructure
+16. `notification_outbox.locked_until` / `locked_by` (P2.3 lease)
+17. P2.3 has no new domain tables; operational configuration only
 
 Steps 1–7 are implemented in `migrations/versions/0001_identity_profiles.py`.
 The P0.2 plan tables are implemented in
@@ -540,10 +557,11 @@ tables are implemented in `migrations/versions/0006_trainer.py`. The P1.3
 notification tables are implemented in
 `migrations/versions/0007_notifications.py`. The P2.1 organization tables are
 implemented in `migrations/versions/0008_organizations.py`. The P2.2 research
-tables are implemented in `migrations/versions/0009_research.py`. Each migration
-must be reversible where practical, and tested against a fresh database. All
-migrations are tested on SQLite (upgrade + downgrade); the Postgres runbook is
-in `hosting.md`.
+tables are implemented in `migrations/versions/0009_research.py`. The P2.3
+outbox lease columns are implemented in
+`migrations/versions/0010_outbox_lease.py`. Each migration must be reversible
+where practical, and tested against a fresh database. All migrations are tested
+on SQLite (upgrade + downgrade); the Postgres runbook is in `hosting.md`.
 
 ---
 

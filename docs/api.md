@@ -262,6 +262,31 @@ with a maximum 366-day window. Exports require `RESEARCH_EXPORT_SECRET` and
 replace user/plan/workout IDs with HMAC pseudonyms. No comments, notes,
 reasons, emails, or titles are exported.
 
+## P2.3 operations endpoint
+
+Mounted only when `OPS_ENABLED=true`:
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/api/v1/admin/ops/status` | platform admin | DB/migration/outbox/Redis status |
+
+`/ready` remains the platform health check and now includes:
+
+```json
+{
+  "status": "ready",
+  "database": "ok",
+  "redis": "not_configured",
+  "redis_detail": null,
+  "rate_limit": "memory",
+  "degraded": false
+}
+```
+
+Redis being unavailable is reported as `degraded` but does not make the API
+unready while `RATE_LIMIT_FAIL_OPEN=true`. With fail-closed enabled, requests
+receive `503 rate_limit_unavailable`.
+
 ## Response envelope
 
 Success uses the endpoint-specific schema. Every response includes:
@@ -305,7 +330,7 @@ error handlers; new clients should read `error.code` and `error.message`.
 | 428 | `expected_revision`/`If-Match` required |
 | 429 | Rate limit exceeded |
 | 500 | Unexpected error |
-| 503 | Timeout, dataset not ready, database/auth not configured |
+| 503 | Timeout, dataset not ready, database/auth not configured, or rate-limit backend fail-closed |
 
 ## Examples of safe failures
 

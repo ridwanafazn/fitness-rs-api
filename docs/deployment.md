@@ -99,6 +99,20 @@ P2.2 research:
 - User-facing endpoints require active `research_analytics` consent.
 - Reports/exports use explicit windows (max 366 days).
 
+P2.3 operations:
+
+- `OPS_ENABLED=true` mounts `/api/v1/admin/ops/status`.
+- `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_TIMEOUT_SECONDS`,
+  `DB_CONNECT_TIMEOUT_SECONDS`, and `DB_POOL_RECYCLE_SECONDS` tune Postgres.
+- `RATE_LIMIT_STORAGE_URI=redis://...` enables shared limiting;
+  `RATE_LIMIT_FAIL_OPEN=true` keeps serving during Redis outages.
+- Run `python scripts/worker.py` as the notification/outbox worker.
+- Use `python scripts/ops_status.py` for external monitoring.
+- Backup/restore uses Neon PITR/branches; verify with
+  `python scripts/verify_restore.py`.
+
+See [`p2-3-scale-and-reliability.md`](p2-3-scale-and-reliability.md).
+
 See [`neon-auth.md`](neon-auth.md) for the Neon Auth token contract.
 
 Run the migration before shifting traffic:

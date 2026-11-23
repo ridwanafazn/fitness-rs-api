@@ -31,6 +31,7 @@ from app.core.middleware import (
     RequestIDMiddleware,
     SecurityHeadersMiddleware,
 )
+from app.core.redis import redis_is_ready
 from app.db.session import database_is_ready, dispose_database, init_database
 from app.services.dataset import clear_dataset_cache, get_dataset
 
@@ -178,6 +179,7 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
         limit=app_settings.rate_limit,
         storage_uri=app_settings.rate_limit_storage_uri,
         trust_proxy_headers=app_settings.trust_proxy_headers,
+        fail_open=app_settings.rate_limit_fail_open,
     )
 
     app.add_middleware(AccessLogMiddleware)
@@ -250,6 +252,17 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
                 )
             database_status = "ok"
 
+        redis_status, redis_detail = (
+            redis_is_ready(app_settings.rate_limit_storage_uri)
+            if app_settings.rate_limit_enabled
+            else ("not_configured", None)
+        )
+        rate_limit_backend = (
+            "redis"
+            if app_settings.rate_limit_storage_uri.startswith(("redis://", "rediss://"))
+            else "memory"
+        )
+
         return JSONResponse(
             status_code=200,
             content={
@@ -257,6 +270,10 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
                 "dataset_version": dataset.version,
                 "dataset_size": len(dataset.exercises),
                 "database": database_status,
+                "redis": redis_status,
+                "redis_detail": redis_detail,
+                "rate_limit": rate_limit_backend,
+                "degraded": redis_status == "unavailable",
             },
         )
 

@@ -16,6 +16,7 @@ from limits.strategies import MovingWindowRateLimiter
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.errors import error_payload
+from app.core.metrics import RATE_LIMIT_DEGRADED_TOTAL
 
 logger = logging.getLogger("fitness_api.access")
 
@@ -76,13 +77,28 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         limit: str,
         storage_uri: str,
         trust_proxy_headers: bool = False,
+        fail_open: bool = True,
     ) -> None:
         super().__init__(app)
         self.enabled = enabled
         self.trust_proxy_headers = trust_proxy_headers
+        self.fail_open = fail_open
         self.limit_item = parse_limit(limit) if enabled else None
-        self.storage = storage_from_string(storage_uri) if enabled else None
-        self.strategy = MovingWindowRateLimiter(self.storage) if self.storage is not None else None
+        self.storage_error = False
+        self.storage = None
+        if enabled:
+            try:
+                self.storage = storage_from_string(storage_uri)
+            except Exception:
+                self.storage_error = True
+                logger.warning(
+                    "rate_limit_storage_unavailable",
+                    extra={"storage_uri": storage_uri},
+                    exc_info=True,
+                )
+        self.strategy = (
+            MovingWindowRateLimiter(self.storage) if self.storage is not None else None
+        )
 
     def _key(self, request: Request) -> str:
         if self.trust_proxy_headers:
@@ -91,8 +107,24 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 return forwarded.split(",")[0].strip()
         return request.client.host if request.client else "unknown"
 
+    async def _degraded(self, request: Request, call_next: Callable) -> Response:
+        RATE_LIMIT_DEGRADED_TOTAL.inc()
+        if not self.fail_open:
+            request_id = getattr(request.state, "request_id", "-")
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content=error_payload(
+                    code="rate_limit_unavailable",
+                    message="Rate limit backend sedang tidak tersedia.",
+                    request_id=request_id,
+                ),
+            )
+        response = await call_next(request)
+        response.headers["X-RateLimit-Degraded"] = "1"
+        return response
+
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        if not self.enabled or self.limit_item is None or self.strategy is None:
+        if not self.enabled or self.limit_item is None:
             return await call_next(request)
 
         # Platform health checks and metrics scrapes must not consume a
@@ -100,9 +132,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in {"/health", "/ready", "/metrics"}:
             return await call_next(request)
 
+        if self.strategy is None:
+            return await self._degraded(request, call_next)
+
         key = self._key(request)
-        allowed = self.strategy.hit(self.limit_item, key)
-        stats = self.strategy.get_window_stats(self.limit_item, key)
+        try:
+            allowed = self.strategy.hit(self.limit_item, key)
+            stats = self.strategy.get_window_stats(self.limit_item, key)
+        except Exception:
+            logger.warning(
+                "rate_limit_backend_failed",
+                extra={"path": request.url.path},
+                exc_info=True,
+            )
+            return await self._degraded(request, call_next)
 
         if allowed:
             response = await call_next(request)

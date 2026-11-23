@@ -340,6 +340,101 @@ def test_outbox_retry_then_success(
 
 
 @pytest.mark.integration
+def test_outbox_lease_is_cleared_after_delivery(
+    notification_client,
+    auth_headers,
+    notification_app,
+    db_session,
+    monkeypatch,
+):
+    notification_client.patch(
+        "/api/v1/me/notifications",
+        json={"email_enabled": True},
+        headers=auth_headers,
+    )
+    created = notification_client.post(
+        "/api/v1/me/notifications/test",
+        json={"channel": "email"},
+        headers=auth_headers,
+    ).json()
+    observed = {}
+
+    def deliver(item, *, mode, webhook_url):
+        observed["locked_by"] = item.locked_by
+        observed["locked_until"] = item.locked_until
+
+    monkeypatch.setattr(notification_service, "_deliver", deliver)
+    session = notification_app.state.session_factory()
+    try:
+        result = notification_service.process_outbox(
+            session,
+            mode="log",
+            webhook_url=None,
+            worker_id="test-worker",
+            lease_seconds=60,
+        )
+    finally:
+        session.close()
+    assert result["sent"] == 1
+    assert observed["locked_by"] == "test-worker"
+    assert observed["locked_until"] is not None
+    stored = db_session.get(NotificationOutbox, uuid.UUID(created["id"]))
+    assert stored is not None
+    assert stored.status == "sent"
+    assert stored.locked_by is None
+    assert stored.locked_until is None
+
+
+@pytest.mark.integration
+def test_outbox_lease_skips_locked_and_expires(
+    notification_client,
+    auth_headers,
+    notification_app,
+    db_session,
+):
+    notification_client.patch(
+        "/api/v1/me/notifications",
+        json={"email_enabled": True},
+        headers=auth_headers,
+    )
+    created = notification_client.post(
+        "/api/v1/me/notifications/test",
+        json={"channel": "email"},
+        headers=auth_headers,
+    ).json()
+    stored = db_session.get(NotificationOutbox, uuid.UUID(created["id"]))
+    assert stored is not None
+    stored.locked_until = datetime.now(UTC) + timedelta(minutes=5)
+    stored.locked_by = "other-worker"
+    db_session.commit()
+
+    session = notification_app.state.session_factory()
+    try:
+        skipped = notification_service.process_outbox(
+            session,
+            mode="log",
+            webhook_url=None,
+        )
+    finally:
+        session.close()
+    assert skipped["processed"] == 0
+
+    db_session.refresh(stored)
+    stored.locked_until = datetime.now(UTC) - timedelta(minutes=1)
+    db_session.commit()
+    session = notification_app.state.session_factory()
+    try:
+        claimed = notification_service.process_outbox(
+            session,
+            mode="log",
+            webhook_url=None,
+        )
+    finally:
+        session.close()
+    assert claimed["sent"] == 1
+
+
+@pytest.mark.integration
 def test_due_reminders_are_idempotent(
     notification_client,
     auth_headers,

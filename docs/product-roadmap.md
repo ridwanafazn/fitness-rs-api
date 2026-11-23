@@ -45,7 +45,7 @@ Total: **10 phases**.
 |---|---|---|---|
 | P2.1 | Organizations (free) | Gym/org, memberships, invitations, org roles | R4 | Backend done; no billing by design |
 | P2.2 | Experimentation & quality | Consent-gated events, deterministic experiments, version registry, redacted export | R4 | Backend done; descriptive only |
-| P2.3 | Scale & reliability | Redis, workers, caching, SLO, tracing, backups, DR | R5 |
+| P2.3 | Scale & reliability | Ops status, worker lease, pool/Redis resilience, load/restore tooling, SLO/runbook | R5 | Backend tooling done; no managed Redis/HA |
 
 ## Release plan
 

@@ -408,3 +408,39 @@ def test_rate_limit_returns_429(dataset_path: Path):
         assert limited.status_code == 429
         assert limited.headers["Retry-After"]
         assert limited.json()["error"]["code"] == "rate_limit_exceeded"
+
+
+@pytest.mark.integration
+def test_rate_limit_fails_open_when_storage_unavailable(dataset_path: Path):
+    settings = Settings(
+        environment="test",
+        dataset_path=dataset_path,
+        rate_limit_enabled=True,
+        rate_limit="10/minute",
+        rate_limit_storage_uri="bogus://",
+        rate_limit_fail_open=True,
+        metrics_enabled=False,
+    )
+    app = create_app(settings)
+    with TestClient(app) as client:
+        response = client.get("/openapi.json")
+    assert response.status_code == 200
+    assert response.headers["X-RateLimit-Degraded"] == "1"
+
+
+@pytest.mark.integration
+def test_rate_limit_can_fail_closed(dataset_path: Path):
+    settings = Settings(
+        environment="test",
+        dataset_path=dataset_path,
+        rate_limit_enabled=True,
+        rate_limit="10/minute",
+        rate_limit_storage_uri="bogus://",
+        rate_limit_fail_open=False,
+        metrics_enabled=False,
+    )
+    app = create_app(settings)
+    with TestClient(app) as client:
+        response = client.get("/openapi.json")
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "rate_limit_unavailable"
