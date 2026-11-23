@@ -12,9 +12,12 @@ Start with:
 3. **Trainer / Coach**
 4. **Platform Admin / Support**
 
-Add later:
+Implemented later:
 
-5. **Gym / Organization Admin**
+5. **Gym / Organization Admin** (P2.1 organization roles)
+
+Not implemented:
+
 6. **Service / API Client**
 
 Do not add an “Expert Reviewer” role yet. It can be a permission of Platform
@@ -133,21 +136,24 @@ Internal operator. Seeded manually; never granted through the public API.
 
 ---
 
-### Service / API Client
+### Service / API Client (not implemented)
 
-A machine identity for integrations. Added in P2.1/P2.2.
+A machine identity for integrations is planned but not implemented. The current
+backend only supports the optional global `API_KEY` for the public
+recommendation endpoints; there are no scoped service credentials, organization
+bindings, or key rotation APIs yet.
 
-**Can:**
+**Planned capabilities:**
 - Call scoped endpoints with an API key.
 - Read/write only the resources allowed by its scopes and organization.
 - Receive webhooks.
 
-**Cannot:**
-- Log in to the UI.
-- Access data outside its organization/scope.
+**Planned restrictions:**
+- Cannot log in to the UI.
+- Cannot access data outside its organization/scope.
 
 **Why:** gyms and partner apps need integrations without sharing a human
-account. API keys are hashed, prefixed, rotatable, and rate-limited.
+account. A future design would hash, prefix, rotate, and rate-limit API keys.
 
 ---
 
@@ -189,6 +195,15 @@ authorization. Check ownership and feature flags in the service layer.
 Any client profile/plan/injury access requires an explicit P1.2 trainer
 relationship and scope grant.
 
+The Service Client column is planned, not implemented. The current machine
+credential is the optional global `API_KEY`, which gates the public
+recommendation endpoints.
+
+Platform Admin dataset/algorithm “configuration” currently means registering
+dataset/algorithm versions for research; there is no endpoint to modify the
+dataset or GA configuration. Break-glass access and user-support impersonation
+are also not implemented.
+
 ---
 
 ## Consent model
@@ -197,9 +212,13 @@ Consent is a first-class record, not a boolean in the profile.
 
 Kinds:
 
-- `health_data_processing` — required before storing injuries/notes.
-- `research_analytics` — optional; for aggregate research.
-- `trainer_sharing` — optional; per trainer/client relationship.
+- `health_data_processing` — required before storing injury rows. Workout notes
+  and feedback pain/comment fields are not separately gated in the current
+  implementation.
+- `research_analytics` — optional; required for research events/experiments.
+- `trainer_sharing` — optional consent kind kept in the model; current trainer
+  access is enforced by invitation acceptance plus `access_grants` scopes, not
+  by this consent row.
 - `marketing` — optional; separate from product consent.
 
 Rules:
@@ -207,7 +226,8 @@ Rules:
 - Consent has a version (`2026-01`) and timestamp.
 - Revocation is immediate for future access; historical audit remains.
 - Revoking `health_data_processing` also deletes stored injury rows.
-- Trainer access requires an active `trainer_sharing` grant.
+- Trainer access requires an accepted invitation and active `access_grants`
+  scopes (`plans`, `workouts`, `feedback`, `progress`); revocation is immediate.
 - A member can see who has access and revoke it.
 - Minors: do not support without a separate legal review.
 
@@ -233,7 +253,8 @@ Implementation status (P0.1):
   production. Production requires `AUTH_ISSUER`, `AUTH_AUDIENCE`, and
   `AUTH_JWKS_URL`.
 - The frontend login callback and onboarding screens are not built yet.
-- Per-user rate limiting is still future work; the current limiter is IP-based.
+- The global rate-limit middleware is IP-based; feedback/safety and
+  research-event endpoints also enforce per-user hourly limits.
 
 Implementation status (P1.2):
 

@@ -81,7 +81,7 @@ The existing recommendation API remains unchanged and public.
   - `PATCH /api/v1/workouts/{id}`
   - `POST /api/v1/workouts/{id}/complete`
   - `POST /api/v1/workouts/{id}/sets`
-  - `POST /api/v1/workouts/{id}/exercises/{exercise_id}/substitute`
+  - `POST /api/v1/workouts/{workout_id}/exercises/{workout_exercise_id}/substitute`
   - `PATCH/DELETE /api/v1/sets/{id}`
   - `POST /api/v1/sync/batch`
 - P0.4 endpoints (`FEEDBACK_ENABLED=true`):
@@ -114,7 +114,8 @@ The existing recommendation API remains unchanged and public.
   - `GET/POST /api/v1/me/devices`, `DELETE /api/v1/me/devices/{id}`
   - `GET /api/v1/me/calendar.ics`, `POST /api/v1/me/calendar/token`
   - `GET /api/v1/calendar/{token}.ics`
-  - `GET/DELETE /api/v1/me/integrations`
+  - `GET /api/v1/me/integrations`
+  - `DELETE /api/v1/me/integrations/{provider}`
   - `POST /api/v1/me/integrations/{provider}/authorize`
   - `POST /api/v1/integrations/{provider}/callback`
 - P2.1 endpoints (`ORGANIZATIONS_ENABLED=true`):

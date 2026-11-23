@@ -169,7 +169,8 @@ client can spoof the header and reset its own limit.
 
 The rate limiter uses an in-memory `limits` store by default. That is fine for one instance.
 For multiple instances, point `RATE_LIMIT_STORAGE_URI` at Redis so counters are
-shared. Install the Redis client extra in that environment (for example,
+shared. `requirements.txt` already pins `redis==8.1.0`; if you manage
+dependencies manually, install the Redis client extra (for example,
 `pip install "limits[redis]"`).
 
 ## Metrics

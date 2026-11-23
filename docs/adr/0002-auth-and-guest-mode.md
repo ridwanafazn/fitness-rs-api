@@ -7,8 +7,9 @@ and frontend login screens are still pending.
 ## Context
 
 The current app is public and stateless. Adding saved plans, workout history,
-trainer access, and billing requires identity and authorization. The existing
-frontend should keep working for visitors who have not signed in.
+trainer access, and organization collaboration requires identity and
+authorization. The existing frontend should keep working for visitors who have
+not signed in.
 
 ## Decision
 
@@ -20,14 +21,15 @@ frontend should keep working for visitors who have not signed in.
 4. Store authorization data in our database:
    - role (`user`, `trainer`, `org_admin`, `platform_admin`)
    - organization membership
-   - entitlements
    - ownership/consent relationships
 5. Do not trust roles from JWT claims alone.
 6. On first authenticated request, upsert the user by
    `(auth_issuer, auth_subject)` and assign the default `user` role.
-7. Separate **role** (who you are), **entitlement** (what you bought), and
-   **ownership** (whose data it is).
+7. Separate **role** (who you are) and **ownership** (whose data it is).
 8. Use a local-only `AUTH_DEV_MODE` (HS256) for tests; reject it in production.
+
+Billing, payments, and entitlements were later removed by the P2.1
+free-organization decision; the current data model has no entitlement table.
 
 ## Consequences
 

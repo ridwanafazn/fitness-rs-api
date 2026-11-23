@@ -78,7 +78,7 @@ Mounted only when `AUTH_PROFILES_ENABLED=true`. Full contract:
 | PUT | `/api/v1/me/equipment` | Replace equipment list |
 | PUT | `/api/v1/me/injuries` | Replace injury list (health consent required) |
 | GET/POST | `/api/v1/me/consents` | Read/grant/revoke consent |
-| GET | `/api/v1/me/export` | Export own data as JSON |
+| GET | `/api/v1/me/export` | Export own P0.1 account data as JSON |
 | DELETE | `/api/v1/me` | Request account deletion (`202`) |
 
 ## P0.2 plan endpoints
@@ -124,7 +124,7 @@ Mounted only when `WORKOUTS_ENABLED=true`. Full contract:
 | PATCH | `/api/v1/workouts/{id}` | Update notes |
 | POST | `/api/v1/workouts/{id}/complete` | Finish workout |
 | POST | `/api/v1/workouts/{id}/sets` | Add a set |
-| POST | `/api/v1/workouts/{id}/exercises/{exercise_id}/substitute` | Substitute |
+| POST | `/api/v1/workouts/{workout_id}/exercises/{workout_exercise_id}/substitute` | Substitute |
 | PATCH | `/api/v1/sets/{id}` | Update a set |
 | DELETE | `/api/v1/sets/{id}` | Soft-delete a set (`204`) |
 | POST | `/api/v1/sync/batch` | Apply offline mutations |
@@ -207,7 +207,8 @@ Mounted only when `NOTIFICATIONS_ENABLED=true`. Full contract:
 | GET | `/api/v1/me/calendar.ics` | user | Authenticated calendar |
 | POST | `/api/v1/me/calendar/token` | user | Public calendar token |
 | GET | `/api/v1/calendar/{token}.ics` | public | Public calendar |
-| GET/DELETE | `/api/v1/me/integrations` | user | List/disconnect |
+| GET | `/api/v1/me/integrations` | user | List integrations |
+| DELETE | `/api/v1/me/integrations/{provider}` | user | Disconnect integration |
 | POST | `/api/v1/me/integrations/{provider}/authorize` | user | Start OAuth |
 | POST | `/api/v1/integrations/{provider}/callback` | public | OAuth callback |
 

@@ -13,8 +13,9 @@ Trainers, gym admins, and platform support may need limited access.
 ## Decision
 
 1. Collect only data needed for the recommendation and coaching workflow.
-2. Require explicit `health_data_processing` consent before storing injuries or
-   pain/notes.
+2. Require explicit `health_data_processing` consent before storing injury
+   rows. Workout notes and feedback pain/comment fields are not separately
+   gated in the current implementation.
 3. Keep research analytics and marketing consent separate and optional.
 4. Store the consent kind, policy version, grant time, and revocation time.
 5. Treat trainer access as a relationship with explicit consent, never a global

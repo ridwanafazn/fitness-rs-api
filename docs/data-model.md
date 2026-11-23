@@ -6,8 +6,10 @@
 - `timestamptz` for all timestamps; store UTC.
 - `created_at`, `updated_at`, optional `deleted_at`.
 - Soft delete by default; hard delete through retention jobs.
-- `version` integer for optimistic concurrency on mutable resources.
-- `org_id` on every tenant-owned table (P2); `owner_user_id` on user-owned tables.
+- `revision` for optimistic concurrency on mutable resources; `version` is the
+  immutable plan snapshot number.
+- `organization_id` on organization tables; `owner_user_id` on user-owned
+  tables. Organization membership never adds `org_id` to health rows.
 - No raw health data in audit metadata or logs.
 - JSONB only for snapshots/metadata that do not need relational queries.
 
@@ -164,8 +166,9 @@ enum. Empty list means “all equipment allowed”, not “none”.
   enough).
 - Default `user` is inserted at first login.
 - `platform_admin` is seeded manually; never via API.
-- Service clients are **not** users; they live in a separate `api_clients`
-  table (P2) with hashed keys and scopes.
+- Scoped service clients are **not implemented**. The only machine credential
+  is the optional global `API_KEY` used to gate the public recommendation
+  endpoints; there is no `api_clients` table.
 
 ### `audit_log`
 
@@ -508,12 +511,15 @@ Rules:
 6. Health rows remain user-owned; organization membership and org `org_id`
    columns never grant health-data access on their own.
 7. A share token never includes user id, email, injury data, or notes.
-8. A workout set is unique per `(user_id, client_mutation_id)`.
+8. A workout set is unique per `(owner_user_id, client_set_id)` when
+   `client_set_id` is present, and per `(workout_exercise_id, set_number)` among
+   non-deleted sets; sync mutations are unique per
+   `(owner_user_id, client_mutation_id)`.
 9. Audit rows are append-only.
 10. A trainer can read client data only through an active relationship and an
     active scope grant; revocation is effective immediately.
 11. Soft-deleted or deletion-pending users cannot authenticate; their data is
-    removed by a retention job.
+    intended to be removed by a retention job (not implemented yet).
 12. Research events require active `research_analytics` consent at ingestion.
 13. Experiment assignments are immutable for a given `(experiment_id, user_id)`.
 14. Research exports never contain direct identifiers, titles, notes, comments,
@@ -531,7 +537,7 @@ Rules:
 6. `user_roles`
 7. `audit_log`
 8. `plans` → `plan_versions` → `plan_days` → `plan_exercises` →
-   `plan_locks` → `plan_shares`
+   `plan_shares`
 9. `workout_sessions` → `workout_exercises` → `set_logs` →
    `client_mutations`
 10. `feedback` → `unsafe_reports`
@@ -569,9 +575,11 @@ on SQLite (upgrade + downgrade); the Postgres runbook is in `hosting.md`.
 
 - `DELETE /me` sets `deletion_requested_at` and `deletion_scheduled_for`
   immediately and blocks authentication.
-- A retention job performs the hard delete after the grace window (default 30
-  days) unless legal/audit retention applies. The job is not implemented yet.
-- Account deletion removes profile, injuries, equipment, plans, workouts,
-  feedback, and consents; audit rows are retained without PII.
+- A retention job is intended to perform the hard delete after the grace window
+  (default 30 days) unless legal/audit retention applies. The job is not
+  implemented yet.
+- When the retention job lands, account deletion is intended to remove profile,
+  injuries, equipment, plans, workouts, feedback, and consents; audit rows are
+  retained without PII.
 - Research export uses aggregate or de-identified data only.
 - Backups follow the same retention policy; document restore and purge.

@@ -367,7 +367,7 @@ Mounted only when `AUTH_PROFILES_ENABLED=true`:
 | PUT | `/api/v1/me/equipment` | Replace equipment list |
 | PUT | `/api/v1/me/injuries` | Replace injury list (health consent required) |
 | GET/POST | `/api/v1/me/consents` | Read/grant/revoke consent |
-| GET | `/api/v1/me/export` | Export own data as JSON |
+| GET | `/api/v1/me/export` | Export own P0.1 account data as JSON |
 | DELETE | `/api/v1/me` | Request account deletion |
 
 Auth is provider-agnostic OIDC: the backend validates `Authorization: Bearer`
@@ -458,7 +458,7 @@ Mounted only when `WORKOUTS_ENABLED=true`. Requires plans and bearer auth.
 | PATCH | `/api/v1/workouts/{id}` | Notes |
 | POST | `/api/v1/workouts/{id}/complete` | Finish |
 | POST | `/api/v1/workouts/{id}/sets` | Log a set |
-| POST | `/api/v1/workouts/{id}/exercises/{exercise_id}/substitute` | Substitute |
+| POST | `/api/v1/workouts/{workout_id}/exercises/{workout_exercise_id}/substitute` | Substitute |
 | PATCH/DELETE | `/api/v1/sets/{id}` | Edit/soft-delete set |
 | POST | `/api/v1/sync/batch` | Offline mutations |
 
@@ -564,12 +564,14 @@ Mounted only when `NOTIFICATIONS_ENABLED=true`.
 |---|---|---|
 | GET/PATCH | `/api/v1/me/notifications` | Preferences |
 | POST | `/api/v1/me/notifications/test` | Enqueue test |
+| GET | `/api/v1/me/notifications/unsubscribe-token` | Email unsubscribe link |
 | GET/POST | `/api/v1/me/devices` | List/register devices |
 | DELETE | `/api/v1/me/devices/{id}` | Remove device |
 | GET | `/api/v1/me/calendar.ics` | Authenticated calendar |
 | POST | `/api/v1/me/calendar/token` | Public calendar token |
 | GET | `/api/v1/calendar/{token}.ics` | Public calendar |
-| GET/DELETE | `/api/v1/me/integrations` | List/disconnect |
+| GET | `/api/v1/me/integrations` | List integrations |
+| DELETE | `/api/v1/me/integrations/{provider}` | Disconnect integration |
 | POST | `/api/v1/me/integrations/{provider}/authorize` | Start OAuth |
 | POST | `/api/v1/integrations/{provider}/callback` | OAuth callback |
 | GET | `/api/v1/notifications/unsubscribe/{token}` | Email unsubscribe |

@@ -25,7 +25,7 @@ Out of scope:
 
 - Real email/SMS/push provider credentials in this repository.
 - Google Fit/Apple Health OAuth.
-- Multi-worker queue locking.
+- Multi-worker queue locking in P1.3; added later in P2.3.
 - Delivery receipts/analytics.
 - In-app notification inbox.
 
@@ -80,7 +80,8 @@ Mounted only when `NOTIFICATIONS_ENABLED=true`:
 | GET | `/api/v1/me/calendar.ics` | user | Authenticated calendar |
 | POST | `/api/v1/me/calendar/token` | user | Create public calendar token |
 | GET | `/api/v1/calendar/{token}.ics` | public | Public calendar feed |
-| GET/DELETE | `/api/v1/me/integrations` | user | List/disconnect integrations |
+| GET | `/api/v1/me/integrations` | user | List active integrations |
+| DELETE | `/api/v1/me/integrations/{provider}` | user | Disconnect integration |
 | POST | `/api/v1/me/integrations/{provider}/authorize` | user | Start OAuth |
 | POST | `/api/v1/integrations/{provider}/callback` | public | OAuth callback |
 
@@ -203,7 +204,9 @@ python scripts/process_outbox.py
 - Built-in delivery is log/webhook; real email/SMS/push adapters are future
   work.
 - Strava only; Google Fit/Apple Health are unsupported.
-- Outbox assumes a single worker; multi-worker locking is future work.
+- Outbox delivery is at-least-once. P2.3 adds a worker lease
+  (`locked_until`/`locked_by`) and `FOR UPDATE SKIP LOCKED` on Postgres, but a
+  crash after external delivery can still duplicate a notification.
 - Quiet hours suppress rather than reschedule.
 - Unsubscribe currently disables email only.
 - Calendar feed uses the latest active plan.

@@ -244,14 +244,16 @@ Grant or revoke a consent kind.
 ### `DELETE /api/v1/me`
 
 Creates an account-deletion request. Returns `202 Accepted` with the request id,
-`requested_at`, and `scheduled_for`. A retention job performs the hard delete
-after `ACCOUNT_DELETION_GRACE_DAYS` (default 30). After the request, the user's
-token is rejected with `403 account_deletion_pending`.
+`requested_at`, and `scheduled_for`. A retention job is intended to perform the
+hard delete after `ACCOUNT_DELETION_GRACE_DAYS` (default 30); the job is not
+implemented yet. After the request, the user's token is rejected with
+`403 account_deletion_pending`.
 
 ### `GET /api/v1/me/export`
 
-Returns the user's own data as JSON (profile, equipment, injuries, consents,
-plans/workouts when those phases exist).
+Returns the user's own P0.1 data as JSON (user, profile, equipment, injuries,
+consents, roles, and account metadata). Plans, workouts, and feedback are not
+included in the account export yet.
 
 ## Validation
 
@@ -295,12 +297,13 @@ present.
 
 ## Observability
 
-Events (no PII):
+Audit actions currently emitted (no PII):
 
-- `auth.login_succeeded`
-- `auth.login_failed`
+- `auth.first_login`
 - `profile.onboarding_completed`
 - `profile.updated`
+- `profile.equipment_replaced`
+- `profile.injuries_replaced`
 - `consent.granted`
 - `consent.revoked`
 - `account.deletion_requested`
@@ -308,10 +311,8 @@ Events (no PII):
 
 Metrics:
 
-- onboarding completion rate
-- auth failure rate
-- profile update latency
-- deletion request count
+- `/metrics` exposes HTTP request metrics when `METRICS_ENABLED=true`.
+- Dedicated onboarding/auth/profile counters are not implemented yet.
 
 ## Tests
 
@@ -398,10 +399,11 @@ Known limitations at this stage:
 - No real OIDC provider is configured in the repository; tests use dev mode.
 - Frontend onboarding, login callback, and consent screens are not built yet.
 - `DELETE /me` records a request; the hard-delete retention job is future work.
-- Rate limiting is still IP-based globally; per-user limits come later.
+- The global rate-limit middleware is IP-based; later phases add per-user
+  limits on feedback/safety and research events.
 - Email is optional and only stored when the provider marks it verified.
-- `GET /me/export` currently covers P0.1 data only; plans/workouts are added in
-  later phases.
+- `GET /me/export` currently covers P0.1 data only; plans, workouts, and
+  feedback are not included yet.
 
 ## Task checklist
 

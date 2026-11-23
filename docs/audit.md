@@ -219,7 +219,7 @@ still intentionally left for future work.
 - Render remains a compatibility target (`render.yaml`); always-on hosting
   options are documented in `hosting.md`.
 - Legacy `vercel.json` removed.
-- `.env.example` documents every setting.
+- `.env.example` documents the deployment-relevant settings.
 - `.dockerignore` excludes tests, docs, caches, and secrets.
 
 ## Known limitations / future work
@@ -228,12 +228,13 @@ still intentionally left for future work.
 - Dataset is 222 exercises; hamstrings and neck are underrepresented.
 - Fitness weights are inherited from the thesis and are not clinically tuned.
 - No multi-expert validation, user study, or ablation in this engineering pass.
-- P0.1–P2.1 backend is implemented and Neon Auth/Postgres are provisioned, but
+- P0.1–P2.3 backend is implemented and Neon Auth/Postgres are provisioned, but
   the frontend login/onboarding/plan screens are not built yet and the live
   Render deployment remains flag-off.
 - Account deletion currently records a request; the hard-delete retention job
   is future work.
-- Rate limiting is IP-based globally; per-user limits are future work.
+- The global rate-limit middleware is IP-based; feedback/safety and
+  research-event endpoints also enforce per-user hourly limits.
 - P0.2 PDF/ICS export is synchronous in-process; move to a worker/object storage
   if it grows.
 - P0.3 has no server-side rest timer or progress charts; those are client-side /
@@ -246,7 +247,9 @@ still intentionally left for future work.
 - P1.2 invite delivery is manual; trainer role is seeded manually.
 - P1.3 delivery is log/webhook by default; real email/SMS/push adapters and
   Google Fit/Apple Health OAuth are future work.
-- Outbox assumes a single worker; multi-worker locking is future work.
+- Outbox delivery is at-least-once. The P2.3 worker lease and
+  `FOR UPDATE SKIP LOCKED` prevent most duplicate claims, but a crash after
+  external delivery can still duplicate a notification.
 - P2.1 has no billing/payments by design. Trainer/client assignment is not yet
   organization-scoped, so the P1.2 client list and the org summary span all
   organizations a trainer belongs to. The summary is aggregate-only.

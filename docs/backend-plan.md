@@ -221,7 +221,7 @@ Notes live on the session/exercise/set rows.
 | PATCH | `/api/v1/sets/{id}` | edit set |
 | DELETE | `/api/v1/sets/{id}` | soft-delete set |
 | POST | `/api/v1/workouts/{id}/complete` | finish |
-| POST | `/api/v1/workouts/{id}/exercises/{exercise_id}/substitute` | substitute exercise |
+| POST | `/api/v1/workouts/{workout_id}/exercises/{workout_exercise_id}/substitute` | substitute exercise |
 | POST | `/api/v1/sync/batch` | batch offline mutations |
 
 ### Rules

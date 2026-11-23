@@ -81,7 +81,7 @@ Mounted only when `WORKOUTS_ENABLED=true`:
 | PATCH | `/api/v1/workouts/{id}` | Update workout notes |
 | POST | `/api/v1/workouts/{id}/complete` | Finish workout |
 | POST | `/api/v1/workouts/{id}/sets` | Add a set |
-| POST | `/api/v1/workouts/{id}/exercises/{exercise_id}/substitute` | Substitute |
+| POST | `/api/v1/workouts/{workout_id}/exercises/{workout_exercise_id}/substitute` | Substitute |
 | PATCH | `/api/v1/sets/{id}` | Update a set |
 | DELETE | `/api/v1/sets/{id}` | Soft-delete a set |
 | POST | `/api/v1/sync/batch` | Apply offline mutations |
